@@ -4,9 +4,9 @@
    "_comment" : "Uso: ./cpuminer -c ch/conf/dgb-hmpool.json",
 
    "algo" : "sha256d",
-   "url" : "stratum+tcp://eu.digi.hmpool.io:3337",
+   "url" : "stratum+tcp://digi.hmpool.io:3337",
    "user" : "SUACARTEIRA.CH-CPU-01",
-   "pass" : "x",
+   "pass" : "X",
 
    "threads" : 0,
    "api-bind" : "127.0.0.1:4048",

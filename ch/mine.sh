@@ -13,10 +13,10 @@ CONF="$CONF_DIR/miner.conf"
 # ---- defaults + persistência ----
 WALLET=""
 POOL_NAME="dgb-hmpool"
-POOL_URL="stratum+tcp://eu.digi.hmpool.io:3337"
+POOL_URL="stratum+tcp://digi.hmpool.io:3337"
 WORKER="CH-CPU-$(hostname -s | tr '[:lower:]' '[:upper:]' | tr -cd 'A-Z0-9' | cut -c1-8)"
 THREADS="0"        # 0 = todos os cores
-PASSWORD="x"
+PASSWORD="X"
 [ -f "$CONF" ] && . "$CONF"
 
 save() {
