@@ -185,19 +185,28 @@ try:
 except ImportError:
     HAVE_ZC = False
 
+zc_state = {}
+
 def mdns_setup():
     if not HAVE_ZC:
         print("[agent] zeroconf ausente — mDNS desligado (pip install zeroconf)")
         return
-    zc = Zeroconf()
-    c = load_conf()
-    worker = c["WORKER"] or "CH-CPU-01"
-    info = ServiceInfo(
-        SERVICE, f"{worker}.{SERVICE}",
-        addresses=[socket.inet_aton(lan_ip())], port=HTTP_PORT,
-        properties={"worker": worker, "fw": FW, "hardware": HW})
-    zc.register_service(info)
-    print(f"[agent] mDNS: {worker} anunciado em _criptohost._tcp:{HTTP_PORT}")
+    try:
+        zc = Zeroconf()
+        c = load_conf()
+        worker = c["WORKER"] or "CH-CPU-01"
+        info = ServiceInfo(
+            SERVICE, f"{worker}.{SERVICE}",
+            addresses=[socket.inet_aton(lan_ip())], port=HTTP_PORT,
+            properties={"worker": worker, "fw": FW, "hardware": HW})
+        # allow_name_change: instância antiga/registro velho na rede não derruba
+        # o agent — o zeroconf renomeia (ex. CH-CPU-01-2) até o TTL expirar
+        zc.register_service(info, allow_name_change=True)
+        zc_state.update(zc=zc, info=info)
+        print(f"[agent] mDNS: {info.name.split('.')[0]} anunciado em _criptohost._tcp:{HTTP_PORT}")
+    except Exception as e:
+        print(f"[agent] mDNS falhou ({e.__class__.__name__}: {e}) — dashboard segue sem mDNS")
+        return
 
     class Listener:
         def add_service(self, zc, typ, name):
@@ -301,12 +310,22 @@ class Handler(SimpleHTTPRequestHandler):
 def main():
     if not os.path.isdir(WEB):
         sys.exit(f"[agent] {WEB} não existe — rode ch/agent/sync-web.sh primeiro")
+    try:
+        srv = ThreadingHTTPServer(("0.0.0.0", HTTP_PORT), Handler)
+    except OSError as e:
+        sys.exit(f"[agent] porta {HTTP_PORT} indisponível ({e.strerror}) — "
+                 "já existe um agent rodando? (pkill -f agent.py)")
     threading.Thread(target=poll_miner, daemon=True).start()
     mdns_setup()
     start_miner()
-    srv = ThreadingHTTPServer(("0.0.0.0", HTTP_PORT), Handler)
     print(f"[agent] Dashboard: http://{lan_ip()}:{HTTP_PORT}  (local: http://localhost:{HTTP_PORT})")
     def bye(*_):
+        if zc_state:   # remove o registro mDNS para não colidir no próximo start
+            try:
+                zc_state["zc"].unregister_service(zc_state["info"])
+                zc_state["zc"].close()
+            except Exception:
+                pass
         if miner_proc and miner_proc.poll() is None:
             miner_proc.terminate()
         sys.exit(0)

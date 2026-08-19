@@ -84,23 +84,23 @@ while true; do
  CriptoHost CPUMiner — configuração
  ──────────────────────────────────────────────────
   [1] Iniciar mineração (só terminal)
-  [7] Iniciar com dashboard web (CH Agent)
-  [2] Wallet    : $w
-  [3] Pool      : $POOL_NAME · $POOL_URL
-  [4] Worker    : $WORKER
-  [5] Threads   : $t
-  [6] Password  : $PASSWORD
+  [2] Iniciar com dashboard web (CH Agent)
+  [3] Wallet    : $w
+  [4] Pool      : $POOL_NAME · $POOL_URL
+  [5] Worker    : $WORKER
+  [6] Threads   : $t
+  [7] Password  : $PASSWORD
   [0] Sair
 EOF
   read -rp " Opção: " op
   case "$op" in
     1) start_miner ;;
-    7) save; exec ch/agent/run.sh ;;
-    2) read -rp "Wallet (endereço da moeda da pool): " WALLET; save ;;
-    3) pick_pool; save ;;
-    4) read -rp "Worker (nome deste nó, ex. CH-CPU-01): " WORKER; save ;;
-    5) read -rp "Threads (0 = todos os cores): " THREADS; save ;;
-    6) read -rp "Password da pool (x ou d=0.001): " PASSWORD; save ;;
+    2) save; exec ch/agent/run.sh ;;
+    3) read -rp "Wallet (endereço da moeda da pool): " WALLET; save ;;
+    4) pick_pool; save ;;
+    5) read -rp "Worker (nome deste nó, ex. CH-CPU-01): " WORKER; save ;;
+    6) read -rp "Threads (0 = todos os cores): " THREADS; save ;;
+    7) read -rp "Password da pool (X ou d=0.001): " PASSWORD; save ;;
     0) exit 0 ;;
     *) echo "Opção inválida." ;;
   esac
