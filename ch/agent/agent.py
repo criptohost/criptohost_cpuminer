@@ -11,7 +11,7 @@ Faz o PC falar o contrato do CriptoHost NerdOS:
 Uso: ./ch/agent/run.sh   (ou: python3 ch/agent/agent.py)
 Dependência opcional: zeroconf (sem ela tudo funciona, menos o mDNS).
 """
-import json, os, platform, re, shutil, signal, socket, subprocess, sys, threading, time
+import json, os, platform, re, shutil, signal, socket, subprocess, sys, threading, time, uuid
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -59,6 +59,14 @@ def hardware_name():
     return platform.processor() or platform.machine() or "CPU"
 
 HW = hardware_name()
+
+def mac_address():
+    n = uuid.getnode()
+    if (n >> 40) & 1:      # bit local/aleatório: uuid não achou MAC real
+        return ""
+    return ":".join(f"{(n >> i) & 0xFF:02X}" for i in range(40, -1, -8))
+
+MAC = mac_address()
 
 def lan_ip():
     try:
@@ -164,6 +172,8 @@ def status_json():
         "ip": lan_ip(),
         "hardware": HW,
         "fw": FW,
+        "platform": "cpu",
+        "mac": MAC,
         "status": "mining" if mining else ("idle" if summary else "offline"),
         "hashrate_khs": round(khs, 1),
         "temp_c": float(summary.get("TEMP", 0) or 0),
