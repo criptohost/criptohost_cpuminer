@@ -130,7 +130,16 @@
     document.querySelectorAll('.ch-nav-pills a[href="/ota.html"]').forEach(function (a) { a.remove(); });
     document.querySelectorAll('[data-cfg="wifi"]').forEach(function (t) { t.remove(); });
     var wifiCard = document.querySelector(".ch-wifi");
-    if (wifiCard) wifiCard.classList.add("is-na");
+    if (wifiCard) wifiCard.remove();
+    fitHeroSide();
+  }
+
+  function fitHeroSide() {
+    var side = document.querySelector(".ch-hero-side");
+    if (!side) return;
+    var vis = [].filter.call(side.children, function (c) { return c.style.display !== "none"; });
+    side.style.display = vis.length ? "grid" : "none";
+    side.style.gridTemplateColumns = vis.length === 1 ? "1fr" : "3fr 9fr";
   }
 
   function tempClass(t) { return t < 65 ? "temp-ok" : t < 85 ? "temp-warn" : "temp-hot"; }
@@ -206,9 +215,13 @@
       if (bars) [].forEach.call(bars.children, function (b, i) { b.className = i < q ? "on" : ""; });
     }
 
-    // temperatura + sparkline (0 = sensor não exposto, ex. macOS sem root)
+    // temperatura: sem leitura (macOS/VM) o card some; com sensor real, fica
+    var tempCard = document.querySelector(".ch-temp");
+    if (tempCard) {
+      var want = st.temp_c ? "" : "none";
+      if (tempCard.style.display !== want) { tempCard.style.display = want; fitHeroSide(); }
+    }
     if (!st.temp_c) {
-      set("temp", "—");
       return renderStatusTail(st);
     }
     set("temp", st.temp_c.toFixed(1));
