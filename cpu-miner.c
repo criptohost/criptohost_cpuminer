@@ -2815,6 +2815,10 @@ out:
 static void show_credits()
 {
    printf("\n         **********  "PACKAGE_NAME" "PACKAGE_VERSION"  ********** \n");
+#ifdef CH_BUILD
+   printf("     CriptoHost CPUMiner - \"Miner de um jeito facil\" - cripto.host\n");
+   printf("     Fork of cpuminer-opt by JayDDee (GPL-2.0), all credit upstream.\n");
+#endif
    printf("     A CPU miner with multi algo support and optimized for CPUs\n");
    printf("     with AVX512, SHA, AES and NEON extensions by JayDDee.\n");
    printf("     BTC donation address: 12tdvfF7KmAsihBXQXynT6E6th2c2pByTT\n\n");

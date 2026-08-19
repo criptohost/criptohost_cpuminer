@@ -1,0 +1,14 @@
+{
+   "_comment" : "CriptoHost CPUMiner — Bitcoin lottery public-pool.io",
+   "_comment" : "Troque SUACARTEIRA pela sua wallet; o sufixo .CH-CPU-01 e o nome do worker.",
+   "_comment" : "Uso: ./cpuminer -c ch/conf/btc-public-pool.json",
+
+   "algo" : "sha256d",
+   "url" : "stratum+tcp://public-pool.io:21496",
+   "user" : "SUACARTEIRA.CH-CPU-01",
+   "pass" : "x",
+
+   "threads" : 0,
+   "api-bind" : "127.0.0.1:4048",
+   "quiet" : false
+}

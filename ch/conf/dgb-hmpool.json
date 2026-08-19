@@ -1,0 +1,14 @@
+{
+   "_comment" : "CriptoHost CPUMiner — DigiByte hmpool (default, low-diff, shares frequentes)",
+   "_comment" : "Troque SUACARTEIRA pela sua wallet; o sufixo .CH-CPU-01 e o nome do worker.",
+   "_comment" : "Uso: ./cpuminer -c ch/conf/dgb-hmpool.json",
+
+   "algo" : "sha256d",
+   "url" : "stratum+tcp://eu.digi.hmpool.io:3337",
+   "user" : "SUACARTEIRA.CH-CPU-01",
+   "pass" : "x",
+
+   "threads" : 0,
+   "api-bind" : "127.0.0.1:4048",
+   "quiet" : false
+}
