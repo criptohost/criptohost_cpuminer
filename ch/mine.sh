@@ -83,7 +83,8 @@ while true; do
 
  CriptoHost CPUMiner — configuração
  ──────────────────────────────────────────────────
-  [1] Iniciar mineração
+  [1] Iniciar mineração (só terminal)
+  [7] Iniciar com dashboard web (CH Agent)
   [2] Wallet    : $w
   [3] Pool      : $POOL_NAME · $POOL_URL
   [4] Worker    : $WORKER
@@ -94,6 +95,7 @@ EOF
   read -rp " Opção: " op
   case "$op" in
     1) start_miner ;;
+    7) save; exec ch/agent/run.sh ;;
     2) read -rp "Wallet (endereço da moeda da pool): " WALLET; save ;;
     3) pick_pool; save ;;
     4) read -rp "Worker (nome deste nó, ex. CH-CPU-01): " WORKER; save ;;

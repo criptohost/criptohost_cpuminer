@@ -49,3 +49,6 @@ sign.sh
 
 compat/curl-for-windows/
 ch/miner.conf
+ch/agent/.venv/
+ch/agent/web/
+ch/agent/miner.log

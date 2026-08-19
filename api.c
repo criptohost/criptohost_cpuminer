@@ -139,7 +139,9 @@ static char *getsummary( char *params )
    double uptime = difftime(ts, startup);
    double accps = (60.0 * accepted_share_count) / (uptime ? uptime : 1.0);
    double diff = net_diff > 0. ? net_diff : stratum_diff;
-   char diff_str[16];
+   // CH fix: %.6f de um net_diff grande (ex. DGB ~9.6e8 -> 17 bytes) estourava
+   // diff_str[16]; _FORTIFY_SOURCE aborta com SIGTRAP no macOS. 32 + snprintf.
+   char diff_str[32];
    double hrate = (double)global_hashrate;
    struct cpu_info cpu = { 0 };
 #ifdef USE_MONITORING
@@ -153,9 +155,9 @@ static char *getsummary( char *params )
 
    // if diff is integer don't display decimals
    if ( diff == trunc( diff ) )
-       sprintf( diff_str, "%.0f", diff);
+       snprintf( diff_str, sizeof(diff_str), "%.0f", diff);
    else
-       sprintf( diff_str, "%.6f", diff);
+       snprintf( diff_str, sizeof(diff_str), "%.6f", diff);
 
    *buffer = '\0';
    sprintf( buffer,
