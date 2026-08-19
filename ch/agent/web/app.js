@@ -165,8 +165,8 @@
       pct.textContent = Math.round(ratio * 100) + "%";
       pct.style.color = ratio > 1 ? "var(--ch-pink)" : "";
     }
-    set("ring-base", isCpuNode(st) ? "vs session peak (" + fmtHashStr(target) + ")"
-                                    : "vs " + fmtHashStr(target) + " target");
+    set("ring-base", isCpuNode(st) ? "session peak" : "board target");
+    set("ring-ref", fmtHashStr(target));
 
     var line = $("status-line");
     if (line) {

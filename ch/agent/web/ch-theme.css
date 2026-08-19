@@ -291,8 +291,17 @@ img { display: block; max-width: 100%; }
   pointer-events: none;
 }
 .ch-ring.is-over .bar { filter: drop-shadow(0 0 8px var(--ch-pink)); }
-.ch-ring-label b { font-family: var(--ch-font-mono); font-size: 1.15rem; font-weight: 700; }
-.ch-ring-label span { font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ch-text-muted); font-weight: 700; }
+.ch-ring-label b { font-family: var(--ch-font-mono); font-size: 1.3rem; font-weight: 700; line-height: 1.1; }
+.ch-ring-label span {
+  font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ch-text-muted); font-weight: 700;
+  max-width: 96px; text-align: center; white-space: nowrap;
+}
+.ch-ring-label em {
+  font-style: normal; font-family: var(--ch-font-mono);
+  font-size: 0.68rem; font-weight: 600; color: var(--ch-text-muted);
+  margin-top: 2px; white-space: nowrap;
+}
 
 .ch-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 0; }
 .ch-chip {
