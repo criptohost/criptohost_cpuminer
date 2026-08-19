@@ -62,8 +62,11 @@ start_miner() {
   fi
   save
   echo
+  # -t 0 literal faria o cpuminer subir ZERO threads; omitir = todos os cores
+  T_ARG=()
+  [ -n "$THREADS" ] && [ "$THREADS" != "0" ] && T_ARG=(-t "$THREADS")
   exec ./cpuminer -a sha256d -o "$POOL_URL" -u "$WALLET.$WORKER" -p "$PASSWORD" \
-       -t "$THREADS" --api-bind 127.0.0.1:4048
+       "${T_ARG[@]}" --api-bind 127.0.0.1:4048
 }
 
 # ---- modo direto (retrocompatível): ./ch/mine.sh <perfil> <wallet> [worker] ----
