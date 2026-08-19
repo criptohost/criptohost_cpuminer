@@ -2814,14 +2814,26 @@ out:
 
 static void show_credits()
 {
-   printf("\n         **********  "PACKAGE_NAME" "PACKAGE_VERSION"  ********** \n");
 #ifdef CH_BUILD
-   printf("     CriptoHost CPUMiner - \"Miner de um jeito facil\" - cripto.host\n");
-   printf("     Fork of cpuminer-opt by JayDDee (GPL-2.0), all credit upstream.\n");
-#endif
+   printf("  /$$$$$$            /$$             /$$                     /$$   /$$                       /$$\n");
+   printf(" /$$__  $$          |__/            | $$                    | $$  | $$                      | $$\n");
+   printf("| $$  \\__/  /$$$$$$  /$$  /$$$$$$  /$$$$$$    /$$$$$$       | $$  | $$  /$$$$$$   /$$$$$$$ /$$$$$$\n");
+   printf("| $$       /$$__  $$| $$ /$$__  $$|_  $$_/   /$$__  $$      | $$$$$$$$ /$$__  $$ /$$_____/|_  $$_/\n");
+   printf("| $$      | $$  \\__/| $$| $$  \\ $$  | $$    | $$  \\ $$      | $$__  $$| $$  \\ $$|  $$$$$$   | $$\n");
+   printf("| $$    $$| $$      | $$| $$  | $$  | $$ /$$| $$  | $$      | $$  | $$| $$  | $$ \\____  $$  | $$ /$$\n");
+   printf("|  $$$$$$/| $$      | $$| $$$$$$$/  |  $$$$/|  $$$$$$/      | $$  | $$|  $$$$$$/ /$$$$$$$/  |  $$$$/\n");
+   printf(" \\______/ |__/      |__/| $$____/    \\___/   \\______/       |__/  |__/ \\______/ |_______/    \\___/\n");
+   printf("                        | $$\n");
+   printf("                        | $$\n");
+   printf("                        |__/\n");
+   printf("\n            CriptoHost CPUMiner v%s \xc2\xb7 cripto.host\n", PACKAGE_VERSION);
+   printf("            fork of cpuminer-opt (GPL-2.0)\n\n");
+#else
+   printf("\n         **********  "PACKAGE_NAME" "PACKAGE_VERSION"  ********** \n");
    printf("     A CPU miner with multi algo support and optimized for CPUs\n");
    printf("     with AVX512, SHA, AES and NEON extensions by JayDDee.\n");
    printf("     BTC donation address: 12tdvfF7KmAsihBXQXynT6E6th2c2pByTT\n\n");
+#endif
 }
 
 #define check_cpu_capability() cpu_capability( false )

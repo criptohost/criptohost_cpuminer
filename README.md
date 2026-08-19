@@ -34,7 +34,7 @@ Benchmark validado neste fork: **Apple M2, 8 threads → 132,9 MH/s** (sha256d).
 xcode-select --install
 brew install autoconf automake jansson openssl@3 curl
 ./ch/build-macos.sh
-./ch/mine.sh dgb-hmpool SUACARTEIRA CH-CPU-01
+./ch/mine.sh          # CLI interativo: configure wallet/pool/worker e inicie
 ```
 
 ### Linux (Debian/Ubuntu)
@@ -42,8 +42,10 @@ brew install autoconf automake jansson openssl@3 curl
 ```bash
 sudo apt install build-essential automake libssl-dev libcurl4-openssl-dev libjansson-dev libgmp-dev zlib1g-dev
 ./ch/build-linux.sh
-./ch/mine.sh dgb-hmpool SUACARTEIRA CH-CPU-01
+./ch/mine.sh          # CLI interativo: configure wallet/pool/worker e inicie
 ```
+
+O `./ch/mine.sh` abre um menu para editar **wallet, pool (perfis ou URL própria), worker, threads e password** — a configuração persiste em `ch/miner.conf`. Modo direto para scripts: `./ch/mine.sh <perfil> <wallet> [worker]`.
 
 ### Windows
 
