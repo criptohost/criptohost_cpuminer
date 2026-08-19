@@ -122,6 +122,56 @@ def start_miner():
 # ---------- telemetria (poll da API do cpuminer) ----------
 summary = {}      # último KEY=VAL da API 4048
 events, errors = [], []
+miner_stats = {"best": 0.0, "jobs": 0}   # extraído do miner.log (API não expõe)
+
+def log_error(msg):
+    errors.insert(0, {"t": int(summary.get("UPTIME", 0)), "type": "reject", "msg": msg})
+    del errors[48:]
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+RE_SUBMIT = re.compile(r"Submitted Diff ([0-9.eE+-]+)")
+RE_JOB = re.compile(r"New (Block|Work)[ :]")
+RE_REASON = re.compile(r"Reject reason: (.+)")
+RE_STALE = re.compile(r"\bStale (\d+)\b")
+
+def tail_miner_log():
+    # best diff, pool jobs e motivos de rejeição vivem só no log do miner
+    path = os.path.join(HERE, "miner.log")
+    pos = 0
+    last_stale = 0
+    while True:
+        try:
+            with open(path, "r", errors="replace") as f:
+                size = os.path.getsize(path)
+                if size < pos:
+                    pos = 0          # log truncado (restart manual)
+                f.seek(pos)
+                for line in f:
+                    ln = ANSI_RE.sub("", line)
+                    m = RE_SUBMIT.search(ln)
+                    if m:
+                        try:
+                            miner_stats["best"] = max(miner_stats["best"], float(m.group(1)))
+                        except ValueError:
+                            pass
+                        continue
+                    if RE_JOB.search(ln):
+                        miner_stats["jobs"] += 1
+                        continue
+                    m = RE_REASON.search(ln)
+                    if m:
+                        log_error("Rejeicao da pool: " + m.group(1).strip())
+                        continue
+                    m = RE_STALE.search(ln)
+                    if m and int(m.group(1)) > last_stale:
+                        last_stale = int(m.group(1))
+                        log_error(f"Share stale (#{last_stale}) — submetido apos novo bloco")
+                pos = f.tell()
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass
+        time.sleep(2)
 
 def log_event(typ, msg):
     events.insert(0, {"t": int(summary.get("UPTIME", 0)), "type": typ, "msg": msg})
@@ -147,7 +197,9 @@ def poll_miner():
             summary = kv
             acc, rej, sol = int(kv.get("ACC", 0)), int(kv.get("REJ", 0)), int(kv.get("SOL", 0))
             if acc > last["ACC"]: log_event("accept", f"Share aceito pela pool (#{acc})")
-            if rej > last["REJ"]: log_event("reject", f"Share rejeitado pela pool (#{rej})")
+            if rej > last["REJ"]:
+                log_event("reject", f"Share rejeitado pela pool (#{rej})")
+                log_error(f"Share rejeitado pela pool (#{rej}) — ver motivo acima se reportado")
             if sol > last["SOL"]: log_event("block", "BLOCO VALIDO ENCONTRADO!")
             if not last["mining"]:
                 log_event("conn", "Minerando — API do miner conectada")
@@ -182,8 +234,8 @@ def status_json():
         "pool": pool_hostport(c),
         "shares": {"found": acc + rej, "sent": acc + rej, "accepted": acc,
                    "rejected": rej, "pending": 0},
-        "best_difficulty": 0,   # a API do cpuminer não expõe best share diff
-        "templates": 0,
+        "best_difficulty": round(miner_stats["best"], 4),   # do miner.log
+        "templates": miner_stats["jobs"],                    # jobs/new work recebidos
         "valid_blocks": int(summary.get("SOL", 0) or 0),
     }
 
@@ -326,6 +378,7 @@ def main():
         sys.exit(f"[agent] porta {HTTP_PORT} indisponível ({e.strerror}) — "
                  "já existe um agent rodando? (pkill -f agent.py)")
     threading.Thread(target=poll_miner, daemon=True).start()
+    threading.Thread(target=tail_miner_log, daemon=True).start()
     mdns_setup()
     start_miner()
     print(f"[agent] Dashboard: http://{lan_ip()}:{HTTP_PORT}  (local: http://localhost:{HTTP_PORT})")
