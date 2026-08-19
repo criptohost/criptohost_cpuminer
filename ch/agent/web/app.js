@@ -458,6 +458,7 @@
         '<div class="meta"><span>MAC</span><b>' + (st.mac || "—") + "</b></div>" +
         '<div class="meta"><span>Version</span><b>' + st.fw + " · " + st.hardware + "</b></div>" +
         '<div class="ch-actions">' +
+        '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/" target="_blank" rel="noopener">Home</a>' +
         '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/config.html">Config</a>' +
         (isCpuNode(st) ? "" : '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/ota.html">OTA</a>') +
         '<button type="button" class="ch-btn ch-btn--danger" data-act="restart" data-ip="' + ip + '">Restart</button>' +
