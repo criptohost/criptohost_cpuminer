@@ -129,6 +129,10 @@
     chromeAdapted = true;
     document.querySelectorAll('.ch-nav-pills a[href="/ota.html"]').forEach(function (a) { a.remove(); });
     document.querySelectorAll('[data-cfg="wifi"]').forEach(function (t) { t.remove(); });
+    var bf = $("btn-factory");           // factory reset não se aplica a PC
+    if (bf) bf.remove();
+    var br = $("btn-restart");           // restart aqui reinicia o processo do miner
+    if (br) br.textContent = "Restart miner";
     var wifiCard = document.querySelector(".ch-wifi");
     if (wifiCard) wifiCard.remove();
     fitHeroSide();
