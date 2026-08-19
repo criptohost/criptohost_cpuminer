@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B041A">
+<title>CriptoHost NerdOS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Urbanist:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/ch-theme.css">
+<link rel="icon" href="/brand/mark.png" type="image/png">
+</head>
+<body data-page="home">
+<a class="ch-skip" href="#main">Skip to content</a>
+<div class="ch-wrap">
+
+  <header class="ch-appbar">
+    <a class="ch-brand" href="/" aria-label="CriptoHost NerdOS">
+      <img class="ch-brand-mark" src="/brand/mark.png" alt="">
+      <span class="ch-brand-meta"><b>CriptoHost</b><small>NerdOS</small></span>
+    </a>
+    <nav class="ch-nav-pills" aria-label="Main">
+      <a href="/" class="active" aria-current="page"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 7l6-5 6 5v7H9v-4H7v4H2z"/></svg>Home</a>
+      <a href="/fleet.html"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Fleet</a>
+      <a href="/config.html"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="8" cy="8" r="2.4"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>Config</a>
+      <a href="/ota.html"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M8 11V3M4.5 6.5L8 3l3.5 3.5M3 13h10"/></svg>OTA</a>
+      <a href="#" id="pool-link" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 9.5l7-7M9 2.5h4.5V7M13 9.5V13a1 1 0 01-1 1H3a1 1 0 01-1-1V4a1 1 0 011-1h3.5"/></svg>Pool</a>
+    </nav>
+    <div class="ch-appbar-end">
+      <span class="ch-pill ch-pill--offline" id="statuspill">…</span>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="ch-hero">
+        <div class="ch-card ch-core">
+          <div class="ch-core-live">
+            <div class="ch-core-copy">
+              <div class="ch-metric-label"><span class="hl">Live</span> Mining Core</div>
+              <div class="ch-metric"><span id="hashrate">0.0</span> <small id="hashrate-unit">kH/s</small></div>
+              <div id="status-line" class="ch-status-line ch-badge--mining">connecting…</div>
+            </div>
+            <div class="ch-ring" aria-hidden="true">
+              <svg width="168" height="168" viewBox="0 0 168 168">
+                <defs>
+                  <linearGradient id="chRingGrad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="var(--ch-primary)"/>
+                    <stop offset="1" stop-color="var(--ch-pink)"/>
+                  </linearGradient>
+                </defs>
+                <circle class="track" cx="84" cy="84" r="72" stroke-width="12" fill="none"/>
+                <circle class="bar" id="ring" cx="84" cy="84" r="72" stroke-width="12" fill="none"
+                        stroke-dasharray="452.4" stroke-dashoffset="452.4"/>
+              </svg>
+              <div class="ch-ring-label"><b id="ring-pct">0%</b><span id="ring-base">vs 400 kH/s target</span></div>
+            </div>
+          </div>
+          <div class="ch-core-mkt">
+            <div class="ch-chips" id="mkt-chips" aria-live="polite"></div>
+            <div class="ch-muted" style="font-size:0.7rem;margin-top:12px" id="mkt-age">market —</div>
+          </div>
+        </div>
+
+        <div class="ch-statstrip">
+          <div class="ch-tile"><div class="ch-metric-label">Accepted</div><div class="v" id="sh-accepted">0</div></div>
+          <div class="ch-tile"><div class="ch-metric-label">Efficiency</div><div class="v" id="sh-eff">—</div></div>
+          <div class="ch-tile"><div class="ch-metric-label">Last share</div><div class="v" id="last-share">—</div></div>
+        </div>
+
+        <div class="ch-hero-side" style="display:grid;grid-template-columns:3fr 9fr;gap:14px;width:100%">
+          <div class="ch-card ch-wifi">
+            <div class="ch-metric-label"><span class="hl">Live</span> Wi-Fi <span class="ch-right-note" id="wifi-q"></span></div>
+            <div class="ch-wifibars" id="wifibars" aria-hidden="true"><i style="height:25%"></i><i style="height:45%"></i><i style="height:65%"></i><i style="height:85%"></i><i style="height:100%"></i></div>
+            <div class="ch-metric ch-metric--sm"><span id="rssi">—</span> <small>dBm</small></div>
+            <div class="ch-muted" style="font-size:0.72rem;margin-top:8px" id="wifi-host">—</div>
+          </div>
+          <div class="ch-card ch-temp">
+            <div class="ch-metric-label">Core Temperature <span class="ch-right-note">live history</span></div>
+            <div class="ch-temp-body">
+              <div class="ch-metric ch-metric--sm"><span id="temp">—</span> <small>°C</small></div>
+              <svg class="ch-spark" id="spark" viewBox="0 0 200 40" preserveAspectRatio="none" aria-hidden="true"><polyline id="spark-line" points=""/></svg>
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <div class="ch-card ch-stream">
+      <div class="ch-stream-head">
+        <div>
+          <div class="ch-metric-label">Share <span class="hl">Data Stream</span></div>
+          <div class="ch-muted" style="font-size:0.72rem;margin-top:6px">Dots are shares sent to the pool. Pool jobs (below) are new block templates — DigiByte issues one about every 15 s, far more often than an ESP32 finds a share.</div>
+        </div>
+        <div class="ch-stream-counts">
+          <div><b id="st-found">0</b><span class="ch-metric-label">Found</span></div>
+          <div><b id="st-sent">0</b><span class="ch-metric-label">Sent</span></div>
+          <div><b id="st-pending">0</b><span class="ch-metric-label">Pending</span></div>
+          <div><b class="acc" id="st-accepted">0</b><span class="ch-metric-label">Accepted</span></div>
+          <div><b class="rej" id="st-rejected">0</b><span class="ch-metric-label">Rejected</span></div>
+        </div>
+      </div>
+      <div class="ch-track" id="stream-track"></div>
+    </div>
+
+    <div class="ch-tiles">
+      <div class="ch-tile"><div class="ch-metric-label">Uptime</div><div class="v" id="uptime">—</div></div>
+      <div class="ch-tile"><div class="ch-metric-label">Best difficulty</div><div class="v" id="bestdiff">0</div></div>
+      <div class="ch-tile" title="New work from the pool. DigiByte sends a job about every 15 seconds — this is not the share counter."><div class="ch-metric-label">Pool jobs</div><div class="v" id="templates">0</div></div>
+      <div class="ch-tile"><div class="ch-metric-label">Valid blocks</div><div class="v" id="valids">0</div></div>
+      <div class="ch-tile"><div class="ch-metric-label">Pool connection</div><div class="v" id="pool-conn" style="font-size:1rem">—</div></div>
+      <div class="ch-tile"><div class="ch-metric-label">Firmware</div><div class="v" id="fw" style="font-size:1rem">—</div></div>
+      <div class="ch-tile ch-logcard" style="grid-column: span 2">
+        <div class="ch-log-head">
+          <div class="ch-metric-label">Connection log</div>
+          <div class="ch-tabs" role="tablist">
+            <button type="button" class="ch-tab is-on" data-log="all" role="tab" aria-selected="true">All</button>
+            <button type="button" class="ch-tab" data-log="err" role="tab" aria-selected="false">Errors <span class="ch-tab-n" id="log-err-n" hidden>0</span></button>
+          </div>
+        </div>
+        <div class="ch-log" id="log"></div>
+        <div class="ch-log" id="log-err" hidden></div>
+      </div>
+    </div>
+
+    <div class="ch-card" style="margin-top:var(--ch-gap)">
+      <div class="ch-worktable">
+        <div><span class="ch-metric-label">Worker</span><b id="w-worker">—</b></div>
+        <div><span class="ch-metric-label">Pool</span><b id="w-pool">—</b></div>
+        <div><span class="ch-metric-label">Wallet</span><b id="w-wallet">—</b></div>
+        <div><span class="ch-metric-label">Hardware</span><b id="w-hw">—</b></div>
+        <div><span class="ch-metric-label">IP address</span><b id="w-ip">—</b></div>
+        <div><span class="ch-metric-label">Dashboard URL</span><b id="w-host">—</b></div>
+        <div><span class="ch-metric-label">Status</span><b id="w-status">—</b></div>
+        <div><span class="ch-metric-label">MAC address</span><b id="w-mac">—</b></div>
+      </div>
+      <div class="ch-actions">
+        <button type="button" class="ch-btn ch-btn--ghost" id="btn-restart">Restart</button>
+        <button type="button" class="ch-btn ch-btn--danger" id="btn-factory">Factory reset</button>
+      </div>
+    </div>
+  </main>
+
+  <p class="ch-caption">CriptoHost NerdOS · live update every 5 seconds · Small power. Big learning.</p>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>
