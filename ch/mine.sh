@@ -56,7 +56,15 @@ pick_pool() {
   fi
 }
 
+build_hint() {
+  case "${PREFIX:-}" in *com.termux*) echo "./ch/build-android.sh"; return;; esac
+  [ "$(uname)" = "Darwin" ] && echo "./ch/build-macos.sh" || echo "./ch/build-linux.sh"
+}
+
 start_miner() {
+  if [ ! -x ./cpuminer ]; then
+    echo; echo "⚠ Binário não compilado — rode $(build_hint) primeiro."; return
+  fi
   if [ -z "$WALLET" ]; then
     echo; echo "⚠ Configure a wallet antes de iniciar."; return
   fi
@@ -98,7 +106,7 @@ EOF
   read -rp " Opção: " op
   case "$op" in
     1) start_miner ;;
-    2) save; exec ch/agent/run.sh ;;
+    2) if [ ! -x ./cpuminer ]; then echo; echo "⚠ Binário não compilado — rode $(build_hint) primeiro."; else save; exec ch/agent/run.sh; fi ;;
     3) read -rp "Wallet (endereço da moeda da pool): " WALLET; save ;;
     4) pick_pool; save ;;
     5) read -rp "Worker (nome deste nó, ex. CH-CPU-01): " WORKER; save ;;

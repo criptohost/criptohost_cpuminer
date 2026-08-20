@@ -90,10 +90,22 @@ def miner_cmd(c):
         cmd += ["-t", c["THREADS"]]
     return cmd
 
+def build_hint():
+    if "com.termux" in os.environ.get("PREFIX", ""):
+        return "./ch/build-android.sh"
+    return "./ch/build-macos.sh" if sys.platform == "darwin" else "./ch/build-linux.sh"
+
 def start_miner():
     global miner_proc
     with miner_lock:
         c = load_conf()
+        binpath = os.path.join(ROOT, "cpuminer")
+        if not os.path.exists(binpath):
+            msg = f"Binário não compilado — rode {build_hint()} e reinicie"
+            print(f"[agent] {msg}", flush=True)
+            log_event("conn", msg)
+            log_error(msg)
+            return False
         if not c["WALLET"]:
             log_event("conn", "Wallet não configurada — miner parado (use Config)")
             return False
