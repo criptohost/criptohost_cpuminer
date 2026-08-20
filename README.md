@@ -105,3 +105,14 @@ echo '{"command":"summary"}' | nc 127.0.0.1 4048
 ---
 
 *Feito com 💜 pela comunidade Cripto Host — Small power. Big learning.*
+
+
+## 📸 Screenshots
+
+Dashboard do CH Agent capturado de um **Apple M2 minerando a ~165 MH/s** (CH-CPU-HINTZSMA), com o Fleet enxergando as placas ESP32 e o Android da frota de validação.
+
+| | Desktop | Mobile |
+|---|---|---|
+| **Home** | ![Home](docs/screenshots/mac-home-desktop.png) | <img src="docs/screenshots/mac-home-mobile.png" width="260"> |
+| **Fleet** | ![Fleet](docs/screenshots/mac-fleet-desktop.png) | <img src="docs/screenshots/mac-fleet-mobile.png" width="260"> |
+| **Config** | ![Config](docs/screenshots/mac-config-desktop.png) | <img src="docs/screenshots/mac-config-mobile.png" width="260"> |
