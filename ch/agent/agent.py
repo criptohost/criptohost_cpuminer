@@ -48,6 +48,11 @@ def pool_hostport(c):
 # ---------- hardware / rede ----------
 def hardware_name():
     try:
+        if "com.termux" in os.environ.get("PREFIX", ""):   # Android
+            marca = subprocess.check_output(["getprop", "ro.product.manufacturer"], text=True).strip()
+            modelo = subprocess.check_output(["getprop", "ro.product.model"], text=True).strip()
+            if marca or modelo:
+                return f"{marca} {modelo}".strip()
         if sys.platform == "darwin":
             return subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"], text=True).strip()
         if sys.platform.startswith("linux"):
