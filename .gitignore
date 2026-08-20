@@ -51,3 +51,4 @@ compat/curl-for-windows/
 ch/miner.conf
 ch/agent/.venv/
 ch/agent/miner.log
+ch/peers.conf

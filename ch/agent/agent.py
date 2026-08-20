@@ -239,6 +239,20 @@ def status_json():
         "valid_blocks": int(summary.get("SOL", 0) or 0),
     }
 
+def static_peers():
+    """ch/peers.conf: um nó por linha, 'ip[:porta]' (porta default 80). # comenta."""
+    path = os.path.join(ROOT, "ch", "peers.conf")
+    out = []
+    if os.path.exists(path):
+        for line in open(path):
+            line = line.split("#")[0].strip()
+            if not line:
+                continue
+            host, _, port = line.partition(":")
+            out.append({"worker": f"peer-{host}", "fw": "?", "hardware": "?",
+                        "ip": host, "port": int(port or 80)})
+    return out
+
 # ---------- mDNS (opcional) ----------
 peers = {}
 try:
@@ -320,6 +334,11 @@ class Handler(SimpleHTTPRequestHandler):
         if p == "/api/fleet":
             self_st = status_json()
             plist = [x for x in peers.values() if x["worker"] != self_st["worker"]]
+            # peers estáticos (ch/peers.conf): redes sem mDNS — datacenter, Android
+            seen = {(x["ip"], x["port"]) for x in plist}
+            for sp in static_peers():
+                if (sp["ip"], sp["port"]) not in seen:
+                    plist.append(sp)
             return self._json({"self": self_st, "peers": plist})
         if p == "/api/config":
             c = load_conf()

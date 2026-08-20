@@ -744,3 +744,8 @@
   else if (page === "config") initConfig();
   else if (page === "ota") initOta();
 })();
+
+/* PWA: service worker passthrough — habilita instalação (Add to Home Screen) */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(function () {});
+}

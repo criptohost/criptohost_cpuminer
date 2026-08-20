@@ -47,6 +47,14 @@ sudo apt install build-essential automake libssl-dev libcurl4-openssl-dev libjan
 
 O `./ch/mine.sh` abre um menu para editar **wallet, pool (perfis ou URL própria), worker, threads e password** — a configuração persiste em `ch/miner.conf`. Modo direto para scripts: `./ch/mine.sh <perfil> <wallet> [worker]`.
 
+### Android (Termux, sem loja)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/criptohost/criptohost_mobile/main/setup-termux.sh | bash
+```
+
+Guia completo (desempenho, térmica, Fleet): [criptohost_mobile](https://github.com/criptohost/criptohost_mobile). iOS não minera (política da Apple) — vira painel da frota via PWA, documentado lá.
+
 ### Windows
 
 Use o executável pré-compilado das [Releases do upstream](https://github.com/JayDDee/cpuminer-opt/releases) (ou compile via MSYS2 — veja `INSTALL_WINDOWS`):
@@ -69,6 +77,10 @@ cpuminer-sse2.exe -c ch\conf\dgb-hmpool.json
 | `dgb-letsmine` | DGB | letsmine.it (Brasil/US) |
 | `btc-nerdminers` / `btc-public-pool` | BTC | lottery |
 | `xec-mining-dutch` / `bch-mining-dutch` | XEC/BCH | requer conta |
+
+## Fleet sem mDNS (datacenter/Android)
+
+Copie `ch/peers.conf.example` para `ch/peers.conf` com um `ip[:porta]` por linha — o `/api/fleet` do agent soma esses nós aos descobertos via mDNS (com dedup).
 
 ## Telemetria local
 

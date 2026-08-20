@@ -1,0 +1,5 @@
+# CriptoHost CPUMiner — peers estáticos do Fleet (copie para ch/peers.conf)
+# Para redes onde o mDNS não alcança (servidores em datacenter, Android).
+# Um nó por linha: ip[:porta]  — porta default 80 (placas ESP32). Ex.:
+# 192.168.1.205            # CH-8634 (ESP32)
+# 192.168.1.62:8091        # CH Agent num PC
