@@ -473,55 +473,89 @@
         "</div></article>";
     }
 
-    // ---- órbita da rede: self no centro, nós CH no anel interno, terceiros no externo ----
-    var orbitSig = "";
+    // ---- órbita da rede: self no centro; cada nó orbita na própria elipse ----
+    // Raio, ângulo inicial, velocidade e sentido derivam do IP: a mesma rede
+    // produz sempre o mesmo céu. Animação via rAF (elipses reais, rótulos retos).
+    var orbitSig = "", orbitNodes = [], orbitRaf = 0;
+    var ORB_CX = 320, ORB_CY = 185;
+
+    function ipHash(st) {
+      var str = String(st.ip || st.worker) + ":" + (st.port || 80);
+      var h = 0;
+      for (var k = 0; k < str.length; k++) h = (h * 31 + str.charCodeAt(k)) >>> 0;
+      return h;
+    }
+
     function renderOrbit(nodes) {
       var svg = $("orbit"), cardEl = $("orbit-card");
       if (!svg) return;
       cardEl.hidden = nodes.length < 2;
-      if (cardEl.hidden) return;
-      var sig = nodes.map(function (n) { return n.st.worker; }).join("|");
-      var CX = 320, CY = 180;
+      if (cardEl.hidden) { cancelAnimationFrame(orbitRaf); orbitRaf = 0; return; }
+      var sig = nodes.map(function (n) { return n.st.worker + "|" + n.st.ip; }).join(",");
       if (sig !== orbitSig) {
         orbitSig = sig;
         var self_ = nodes[0], ch = [], frn = [];
         nodes.slice(1).forEach(function (n) { (isForeign(n.st) ? frn : ch).push(n); });
-        var parts = [
-          '<ellipse class="ring" cx="' + CX + '" cy="' + CY + '" rx="150" ry="105"/>',
-          '<ellipse class="ring" cx="' + CX + '" cy="' + CY + '" rx="255" ry="152"/>'
-        ];
-        function place(list, rx, ry, cls) {
-          list.forEach(function (n, i) {
-            var a = -Math.PI / 2 + (i * 2 * Math.PI) / list.length + (cls ? 0.5 : 0);
-            var x = CX + rx * Math.cos(a), y = CY + ry * Math.sin(a);
-            n._pos = { x: x, y: y };
-            parts.push('<line class="link' + (cls ? " foreign" : "") + '" x1="' + CX + '" y1="' + CY + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '"/>');
+
+        function params(list, rxMin, rxMax) {
+          var step = list.length ? (rxMax - rxMin) / list.length : 0;
+          return list.map(function (n, idx) {
+            var h = ipHash(n.st);
+            var rx = rxMin + step * idx + (h % 97) / 97 * Math.max(10, step * 0.5);
+            return {
+              n: n,
+              rx: rx,
+              ry: rx * 0.58,
+              a: ((h >>> 8) % 628) / 100,                      // ângulo inicial 0..2π
+              w: ((h & 1) ? 1 : -1) * (2 * Math.PI) / (55 + rx * 0.45) // rad/s, interno mais rápido
+            };
           });
         }
-        place(ch, 150, 105, "");
-        place(frn, 255, 152, "foreign");
-        function nodeSvg(n, cls, r) {
-          var host = n.st.hostname || String(n.st.worker).toLowerCase().replace(/[^a-z0-9]+/g, "-");
-          var p = n._pos;
-          return '<g class="node ' + cls + '" data-host="' + host + '" transform="translate(' + p.x.toFixed(1) + " " + p.y.toFixed(1) + ')">' +
+        var orbs = params(ch, 105, 205).concat(params(frn, 220, 285).map(function (o) { o.foreign = true; return o; }));
+
+        var parts = orbs.map(function (o) {
+          return '<ellipse class="ring" cx="' + ORB_CX + '" cy="' + ORB_CY + '" rx="' + o.rx.toFixed(1) + '" ry="' + o.ry.toFixed(1) + '"/>';
+        });
+        orbs.forEach(function (o, i2) {
+          parts.push('<line class="link' + (o.foreign ? " foreign" : "") + '" data-orb-line="' + i2 + '" x1="' + ORB_CX + '" y1="' + ORB_CY + '" x2="' + ORB_CX + '" y2="' + ORB_CY + '"/>');
+        });
+        function nodeSvg(st, cls, r, i2) {
+          var host = st.hostname || String(st.worker).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          return '<g class="node ' + cls + '" data-host="' + host + '"' + (i2 != null ? ' data-orb="' + i2 + '"' : "") + ">" +
             '<circle class="pulse" r="' + r + '"/>' +
             '<circle r="' + r + '"/>' +
-            '<text y="' + (r + 15) + '" text-anchor="middle" font-size="11" font-weight="700">' + n.st.worker + "</text>" +
+            '<text y="' + (r + 15) + '" text-anchor="middle" font-size="11" font-weight="700">' + st.worker + "</text>" +
             '<text class="sub" data-orbit-hash="' + host + '" y="' + (r + 28) + '" text-anchor="middle" font-size="9.5"></text>' +
             "</g>";
         }
-        self_._pos = { x: CX, y: CY };
-        parts.push(nodeSvg(self_, "self", 16));
-        ch.forEach(function (n) { parts.push(nodeSvg(n, "", 11)); });
-        frn.forEach(function (n) { parts.push(nodeSvg(n, "foreign", 11)); });
+        parts.push('<g transform="translate(' + ORB_CX + " " + ORB_CY + ')">' + nodeSvg(self_.st, "self", 16, null) + "</g>");
+        orbs.forEach(function (o, i2) {
+          parts.push(nodeSvg(o.n.st, o.foreign ? "foreign" : "", 11, i2));
+        });
         svg.innerHTML = parts.join("");
+        orbitNodes = orbs.map(function (o, i2) {
+          return { p: o, g: svg.querySelector('[data-orb="' + i2 + '"]'),
+                   line: svg.querySelector('[data-orb-line="' + i2 + '"]') };
+        });
+        if (!orbitRaf) orbitTick();
       }
-      // valores ao vivo sem reconstruir (animações seguem fluidas)
+      // valores ao vivo sem reconstruir
       nodes.forEach(function (n) {
         var host = n.st.hostname || String(n.st.worker).toLowerCase().replace(/[^a-z0-9]+/g, "-");
         var t = svg.querySelector('[data-orbit-hash="' + host + '"]');
         if (t) t.textContent = fmtHashStr(n.st.hashrate_khs);
       });
+    }
+
+    function orbitTick() {
+      var t = performance.now() / 1000;
+      orbitNodes.forEach(function (o) {
+        var a = o.p.a + o.p.w * t;
+        var x = ORB_CX + o.p.rx * Math.cos(a), y = ORB_CY + o.p.ry * Math.sin(a);
+        if (o.g) o.g.setAttribute("transform", "translate(" + x.toFixed(1) + " " + y.toFixed(1) + ")");
+        if (o.line) { o.line.setAttribute("x2", x.toFixed(1)); o.line.setAttribute("y2", y.toFixed(1)); }
+      });
+      orbitRaf = requestAnimationFrame(orbitTick);
     }
 
     // ---- editor de peers (só nós CPU: /api/peers responde) ----
