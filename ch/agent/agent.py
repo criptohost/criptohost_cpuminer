@@ -11,7 +11,7 @@ Faz o PC falar o contrato do CriptoHost NerdOS:
 Uso: ./ch/agent/run.sh   (ou: python3 ch/agent/agent.py)
 Dependência opcional: zeroconf (sem ela tudo funciona, menos o mDNS).
 """
-import json, os, platform, re, shutil, signal, socket, subprocess, sys, threading, time, uuid
+import json, os, platform, re, shutil, signal, socket, subprocess, sys, threading, time, urllib.request, uuid
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -106,13 +106,13 @@ def start_miner():
         c = load_conf()
         binpath = os.path.join(ROOT, "cpuminer")
         if not os.path.exists(binpath):
-            msg = f"Binário não compilado — rode {build_hint()} e reinicie"
+            msg = f"Miner binary missing — run {build_hint()} and restart"
             print(f"[agent] {msg}", flush=True)
             log_event("conn", msg)
             log_error(msg)
             return False
         if not c["WALLET"]:
-            log_event("conn", "Wallet não configurada — miner parado (use Config)")
+            log_event("conn", "Wallet not set — miner stopped (use Config)")
             return False
         if miner_proc and miner_proc.poll() is None:
             miner_proc.terminate()
@@ -123,13 +123,13 @@ def start_miner():
         # que iniciou o agent (restore_signals=True devolveria o SIGHUP default)
         miner_proc = subprocess.Popen(miner_cmd(c), stdout=logf, stderr=logf, cwd=ROOT,
                                       start_new_session=True, restore_signals=False)
-        log_event("conn", f"Miner iniciado em {pool_hostport(c)}")
+        log_event("conn", f"Miner started on {pool_hostport(c)}")
 
         def reaper(p):
             rc = p.wait()
             why = f"sinal {-rc} ({signal.Signals(-rc).name})" if rc < 0 else f"exit {rc}"
             print(f"[agent] miner pid {p.pid} morreu: {why}", flush=True)
-            log_event("conn", f"Miner caiu ({why}) — reiniciando em 5s")
+            log_event("conn", f"Miner died ({why}) — restarting in 5 s")
             time.sleep(5)
             if miner_proc is p:   # ninguém reiniciou no meio tempo
                 start_miner()
@@ -177,12 +177,12 @@ def tail_miner_log():
                         continue
                     m = RE_REASON.search(ln)
                     if m:
-                        log_error("Rejeicao da pool: " + m.group(1).strip())
+                        log_error("Pool reject reason: " + m.group(1).strip())
                         continue
                     m = RE_STALE.search(ln)
                     if m and int(m.group(1)) > last_stale:
                         last_stale = int(m.group(1))
-                        log_error(f"Share stale (#{last_stale}) — submetido apos novo bloco")
+                        log_error(f"Stale share (#{last_stale}) — submitted after a new block")
                 pos = f.tell()
         except FileNotFoundError:
             pass
@@ -213,17 +213,17 @@ def poll_miner():
             kv = dict(p.split("=", 1) for p in data.rstrip("|").split(";") if "=" in p)
             summary = kv
             acc, rej, sol = int(kv.get("ACC", 0)), int(kv.get("REJ", 0)), int(kv.get("SOL", 0))
-            if acc > last["ACC"]: log_event("accept", f"Share aceito pela pool (#{acc})")
+            if acc > last["ACC"]: log_event("accept", f"Share accepted by pool (#{acc})")
             if rej > last["REJ"]:
-                log_event("reject", f"Share rejeitado pela pool (#{rej})")
-                log_error(f"Share rejeitado pela pool (#{rej}) — ver motivo acima se reportado")
-            if sol > last["SOL"]: log_event("block", "BLOCO VALIDO ENCONTRADO!")
+                log_event("reject", f"Share rejected by pool (#{rej})")
+                log_error(f"Share rejected by pool (#{rej}) — see reason above if reported")
+            if sol > last["SOL"]: log_event("block", "VALID BLOCK FOUND!")
             if not last["mining"]:
-                log_event("conn", "Minerando — API do miner conectada")
+                log_event("conn", "Mining — miner API connected")
             last = {"ACC": acc, "REJ": rej, "SOL": sol, "mining": True}
         except Exception:
             if last["mining"]:
-                log_event("conn", "API do miner indisponível — reconectando")
+                log_event("conn", "Miner API unreachable — reconnecting")
             summary = {}
             last["mining"] = False
         time.sleep(5)
@@ -270,6 +270,59 @@ def static_peers():
                         "ip": host, "port": int(port or 80)})
     return out
 
+# ---------- mineradores de terceiros (AxeOS: Bitaxe, NerdQAxe/NerdOctaxe…) ----------
+foreign = {}        # ip -> status normalizado (contrato CH + platform="foreign")
+http_hosts = set()  # candidatos vistos no browse _http._tcp
+
+def probe_foreign(ip, port=80):
+    """Família AxeOS responde GET /api/system/info — normaliza para o contrato CH."""
+    try:
+        with urllib.request.urlopen(f"http://{ip}:{port}/api/system/info", timeout=3) as r:
+            d = json.load(r)
+    except Exception:
+        return None
+    if not isinstance(d, dict) or ("hashRate" not in d and "ASICModel" not in d):
+        return None
+    ghs = float(d.get("hashRate", 0) or 0)
+    acc = int(d.get("sharesAccepted", 0) or 0)
+    rej = int(d.get("sharesRejected", 0) or 0)
+    blob = json.dumps(d).lower()
+    vendor = ("NerdOctaxe" if "octaxe" in blob else
+              "NerdQAxe" if "qaxe" in blob or "nerdaxe" in blob else "Bitaxe/AxeOS")
+    return {
+        "worker": d.get("hostname") or f"axeos-{ip.replace('.', '-')}",
+        "hostname": (d.get("hostname") or "").lower(),
+        "ip": ip, "port": port,
+        "platform": "foreign", "vendor": vendor,
+        "hardware": d.get("ASICModel") or d.get("deviceModel") or "ASIC",
+        "fw": str(d.get("version", "")),
+        "status": "mining" if ghs > 0 else "idle",
+        "hashrate_khs": round(ghs * 1e6, 1),   # AxeOS reporta GH/s
+        "temp_c": float(d.get("temp", 0) or 0),
+        "rssi_dbm": int(d.get("wifiRSSI", 0) or 0),
+        "uptime_s": int(d.get("uptimeSeconds", 0) or 0),
+        "pool": f'{d.get("stratumURL", "")}:{d.get("stratumPort", "")}'.strip(":"),
+        "mac": d.get("macAddr") or d.get("macAddress") or "",
+        "coin": "BTC",
+        "shares": {"found": acc + rej, "sent": acc + rej,
+                   "accepted": acc, "rejected": rej, "pending": 0},
+        "best_difficulty": d.get("bestDiff", 0),
+        "templates": 0, "valid_blocks": 0,
+    }
+
+def foreign_scan_loop():
+    while True:
+        my = lan_ip()
+        ch_ips = {p["ip"] for p in peers.values()}
+        cands = (http_hosts | {sp["ip"] for sp in static_peers()}) - ch_ips - {my, "127.0.0.1"}
+        for ip in sorted(cands):
+            info = probe_foreign(ip)
+            if info:
+                foreign[ip] = info
+            elif ip in foreign:
+                foreign.pop(ip, None)
+        time.sleep(30)
+
 # ---------- mDNS (opcional) ----------
 peers = {}
 try:
@@ -315,6 +368,19 @@ def mdns_setup():
             peers.pop(name, None)
     ServiceBrowser(zc, SERVICE, Listener())
 
+    class HttpListener:   # candidatos a mineradores de terceiros
+        def add_service(self, zc, typ, name):
+            try:
+                i = zc.get_service_info(typ, name, timeout=2500)
+                if i and i.addresses:
+                    http_hosts.add(socket.inet_ntoa(i.addresses[0]))
+            except Exception:
+                pass
+        update_service = add_service
+        def remove_service(self, *a):
+            pass
+    ServiceBrowser(zc, "_http._tcp.local.", HttpListener())
+
 # ---------- HTTP ----------
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
@@ -356,7 +422,8 @@ class Handler(SimpleHTTPRequestHandler):
             for sp in static_peers():
                 if (sp["ip"], sp["port"]) not in seen:
                     plist.append(sp)
-            return self._json({"self": self_st, "peers": plist})
+            return self._json({"self": self_st, "peers": plist,
+                               "foreign": list(foreign.values())})
         if p == "/api/config":
             c = load_conf()
             host, _, port = pool_hostport(c).partition(":")
@@ -364,10 +431,14 @@ class Handler(SimpleHTTPRequestHandler):
                                "wallet": f'{c["WALLET"]}.{c["WORKER"]}',
                                "password": c["PASSWORD"], "timezone": -3,
                                "fw": FW, "hardware": HW})
+        if p == "/api/peers":
+            path = os.path.join(ROOT, "ch", "peers.conf")
+            content = open(path).read() if os.path.exists(path) else ""
+            return self._json({"content": content, "editable": True})
         if p == "/api/wifi":
             return self._json({"ssid": "", "rssi": None})  # PC: sem gestão de Wi-Fi
         if p == "/api/ota/status":
-            return self._json({"error": "OTA não se aplica ao CPUMiner — atualize via git pull"})
+            return self._json({"error": "OTA does not apply to the CPUMiner — update via git pull"})
         return super().do_GET()
 
     def do_POST(self):
@@ -392,17 +463,34 @@ class Handler(SimpleHTTPRequestHandler):
             save_conf(c)
             threading.Thread(target=start_miner, daemon=True).start()
             return self._json({"ok": True, "restarting": True})
+        if p == "/api/peers":
+            try:
+                d = json.loads(body)
+                content = str(d.get("content", ""))
+            except ValueError:
+                return self._json({"error": "invalid json"}, 400)
+            for ln in content.splitlines():
+                ln = ln.split("#")[0].strip()
+                if not ln:
+                    continue
+                host, _, port = ln.partition(":")
+                if not re.match(r"^[A-Za-z0-9._-]+$", host) or (port and not port.isdigit()):
+                    return self._json({"error": f"invalid line: {ln}"}, 400)
+            with open(os.path.join(ROOT, "ch", "peers.conf"), "w") as f:
+                f.write(content if content.endswith("\n") or not content else content + "\n")
+            log_event("conn", "Fleet peers updated")
+            return self._json({"ok": True})
         if p == "/api/restart":
             threading.Thread(target=start_miner, daemon=True).start()
             return self._json({"ok": True, "restarting": True})
         if p == "/api/identify":
             print("\a[agent] IDENTIFY — este é o nó " + load_conf()["WORKER"], flush=True)
-            log_event("conn", "Identify acionado")
+            log_event("conn", "Identify triggered")
             return self._json({"ok": True})
         if p == "/api/factory-reset":
-            return self._json({"error": "factory reset não se aplica ao CPUMiner"}, 400)
+            return self._json({"error": "Factory reset does not apply to the CPUMiner"}, 400)
         if p in ("/api/ota", "/api/ota/prepare"):
-            return self._json({"error": "OTA não se aplica ao CPUMiner — atualize via git pull"}, 400)
+            return self._json({"error": "OTA does not apply to the CPUMiner — update via git pull"}, 400)
         return self._json({"error": "not found"}, 404)
 
 def main():
@@ -415,6 +503,7 @@ def main():
                  "já existe um agent rodando? (pkill -f agent.py)")
     threading.Thread(target=poll_miner, daemon=True).start()
     threading.Thread(target=tail_miner_log, daemon=True).start()
+    threading.Thread(target=foreign_scan_loop, daemon=True).start()
     mdns_setup()
     start_miner()
     print(f"[agent] Dashboard: http://{lan_ip()}:{HTTP_PORT}  (local: http://localhost:{HTTP_PORT})")

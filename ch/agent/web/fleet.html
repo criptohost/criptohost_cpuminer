@@ -52,7 +52,22 @@
 
     <div class="ch-scanline" id="scanline">Scanning the network via mDNS <code>_criptohost._tcp</code>…</div>
 
+    <div class="ch-card ch-orbit-card" id="orbit-card" hidden>
+      <div class="ch-metric-label"><span class="hl">Network</span> Orbit</div>
+      <svg class="ch-orbit" id="orbit" viewBox="0 0 640 360" role="img" aria-label="Fleet map"></svg>
+    </div>
+
     <div class="ch-fleet-grid" id="fleet-cards"></div>
+
+    <div class="ch-card ch-peers-editor" id="peers-card" hidden style="margin-top: var(--ch-gap)">
+      <div class="ch-metric-label"><span class="hl">Fleet</span> Peers</div>
+      <p class="ch-muted" style="margin: 8px 0 10px">Static nodes for networks where mDNS can't reach (servers, Android). One <code>ip[:port]</code> per line — port defaults to 80 (boards). <code>#</code> starts a comment.</p>
+      <textarea id="peers-text" spellcheck="false" placeholder="192.168.1.205        # board&#10;192.168.1.62:8091    # desktop agent"></textarea>
+      <div class="ch-actions">
+        <button type="button" class="ch-btn" id="btn-peers-save">Save peers</button>
+        <span class="ch-muted" id="peers-msg"></span>
+      </div>
+    </div>
 
     <div class="ch-actions">
       <button type="button" class="ch-btn" id="btn-rescan">Rescan network</button>

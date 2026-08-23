@@ -439,10 +439,15 @@
 
   // ---------- FLEET ----------
   function initFleet() {
+    function isForeign(st) { return st.platform === "foreign"; }
+
     function card(st, ip) {
       var host = st.hostname || String(st.worker || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      return '<article class="ch-card ch-devcard">' +
+      var frn = isForeign(st);
+      var coin = frn ? (st.coin || "BTC") : miningSymbol(st.pool);
+      return '<article class="ch-card ch-devcard' + (frn ? " ch-devcard--foreign" : "") + '" id="card-' + host + '">' +
         "<h3>" + st.worker +
+        (frn ? ' <span class="ch-pill ch-pill--foreign" style="font-size:0.6rem;padding:3px 9px">' + (st.vendor || "3rd-party") + "</span>" : "") +
         ' <span class="' + (st.status === "mining" ? "ch-badge--mining" : "ch-badge--offline") + '" style="font-size:0.72rem;font-weight:700">● ' +
         (st.status === "mining" ? "Online" : st.status) + "</span></h3>" +
         '<div class="host">' + host + ".local</div>" +
@@ -452,17 +457,91 @@
         (st.temp_c ? '<div class="' + tempClass(st.temp_c) + '"><span>Temp</span>' + st.temp_c.toFixed(0) + " °C</div>"
                    : "<div><span>Temp</span>—</div>") +
         "<div><span>Wi-Fi</span>" + (st.rssi_dbm ? st.rssi_dbm + " dBm" : "—") + "</div>" +
+        "<div><span>Coin</span>" + coin + "</div>" +
         "<div><span>Status</span>" + st.status + "</div>" +
         "</div>" +
-        '<div class="meta"><span>Pool</span><b>' + st.pool + "</b></div>" +
+        '<div class="meta"><span>Pool</span><b>' + (st.pool || "—") + "</b></div>" +
         '<div class="meta"><span>MAC</span><b>' + (st.mac || "—") + "</b></div>" +
         '<div class="meta"><span>Version</span><b>' + st.fw + " · " + st.hardware + "</b></div>" +
         '<div class="ch-actions">' +
-        '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/" target="_blank" rel="noopener">Home</a>' +
-        '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/config.html">Config</a>' +
-        (isCpuNode(st) ? "" : '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/ota.html">OTA</a>') +
-        '<button type="button" class="ch-btn ch-btn--danger" data-act="restart" data-ip="' + ip + '">Restart</button>' +
+        (frn
+          ? '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/" target="_blank" rel="noopener">Open UI</a>'
+          : '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/" target="_blank" rel="noopener">Home</a>' +
+            '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/config.html">Config</a>' +
+            (isCpuNode(st) ? "" : '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/ota.html">OTA</a>') +
+            '<button type="button" class="ch-btn ch-btn--danger" data-act="restart" data-ip="' + ip + '">Restart</button>') +
         "</div></article>";
+    }
+
+    // ---- órbita da rede: self no centro, nós CH no anel interno, terceiros no externo ----
+    var orbitSig = "";
+    function renderOrbit(nodes) {
+      var svg = $("orbit"), cardEl = $("orbit-card");
+      if (!svg) return;
+      cardEl.hidden = nodes.length < 2;
+      if (cardEl.hidden) return;
+      var sig = nodes.map(function (n) { return n.st.worker; }).join("|");
+      var CX = 320, CY = 180;
+      if (sig !== orbitSig) {
+        orbitSig = sig;
+        var self_ = nodes[0], ch = [], frn = [];
+        nodes.slice(1).forEach(function (n) { (isForeign(n.st) ? frn : ch).push(n); });
+        var parts = [
+          '<ellipse class="ring" cx="' + CX + '" cy="' + CY + '" rx="150" ry="105"/>',
+          '<ellipse class="ring" cx="' + CX + '" cy="' + CY + '" rx="255" ry="152"/>'
+        ];
+        function place(list, rx, ry, cls) {
+          list.forEach(function (n, i) {
+            var a = -Math.PI / 2 + (i * 2 * Math.PI) / list.length + (cls ? 0.5 : 0);
+            var x = CX + rx * Math.cos(a), y = CY + ry * Math.sin(a);
+            n._pos = { x: x, y: y };
+            parts.push('<line class="link' + (cls ? " foreign" : "") + '" x1="' + CX + '" y1="' + CY + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '"/>');
+          });
+        }
+        place(ch, 150, 105, "");
+        place(frn, 255, 152, "foreign");
+        function nodeSvg(n, cls, r) {
+          var host = n.st.hostname || String(n.st.worker).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+          var p = n._pos;
+          return '<g class="node ' + cls + '" data-host="' + host + '" transform="translate(' + p.x.toFixed(1) + " " + p.y.toFixed(1) + ')">' +
+            '<circle class="pulse" r="' + r + '"/>' +
+            '<circle r="' + r + '"/>' +
+            '<text y="' + (r + 15) + '" text-anchor="middle" font-size="11" font-weight="700">' + n.st.worker + "</text>" +
+            '<text class="sub" data-orbit-hash="' + host + '" y="' + (r + 28) + '" text-anchor="middle" font-size="9.5"></text>' +
+            "</g>";
+        }
+        self_._pos = { x: CX, y: CY };
+        parts.push(nodeSvg(self_, "self", 16));
+        ch.forEach(function (n) { parts.push(nodeSvg(n, "", 11)); });
+        frn.forEach(function (n) { parts.push(nodeSvg(n, "foreign", 11)); });
+        svg.innerHTML = parts.join("");
+      }
+      // valores ao vivo sem reconstruir (animações seguem fluidas)
+      nodes.forEach(function (n) {
+        var host = n.st.hostname || String(n.st.worker).toLowerCase().replace(/[^a-z0-9]+/g, "-");
+        var t = svg.querySelector('[data-orbit-hash="' + host + '"]');
+        if (t) t.textContent = fmtHashStr(n.st.hashrate_khs);
+      });
+    }
+
+    // ---- editor de peers (só nós CPU: /api/peers responde) ----
+    function initPeersEditor() {
+      fetch("/api/peers").then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+        if (!d || !d.editable) return;
+        $("peers-card").hidden = false;
+        $("peers-text").value = d.content || "";
+        $("btn-peers-save").addEventListener("click", function () {
+          set("peers-msg", "Saving…");
+          fetch("/api/peers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content: $("peers-text").value })
+          }).then(function (r) { return r.json(); }).then(function (res) {
+            set("peers-msg", res.ok ? "Saved — rescanning…" : (res.error || "error"));
+            if (res.ok) setTimeout(refresh, 1500);
+          }).catch(function () { set("peers-msg", "Failed to save."); });
+        });
+      }).catch(function () {});
     }
 
     function refresh() {
@@ -479,15 +558,24 @@
             .catch(function () { return null; });
         })).then(function (res) {
           res.filter(Boolean).forEach(function (n) { nodes.push(n); });
-          $("fleet-cards").innerHTML = nodes.map(function (n) { return card(n.st, n.ip); }).join("");
-          set("agg-online", nodes.length);
-          var aggF = fmtHash(nodes.reduce(function (a, n) { return a + n.st.hashrate_khs; }, 0));
+          nodes.sort(function (a, b) { return String(a.st.worker).localeCompare(String(b.st.worker)); });
+          // mineradores de terceiros (Bitaxe/NerdQAxe…) já vêm com status completo do agent
+          var frn = (fleet.foreign || []).map(function (f) {
+            return { st: f, ip: (f.port && f.port != 80) ? f.ip + ":" + f.port : f.ip };
+          }).sort(function (a, b) { return String(a.st.worker).localeCompare(String(b.st.worker)); });
+          var all = nodes.concat(frn);
+          $("fleet-cards").innerHTML = all.map(function (n) { return card(n.st, n.ip); }).join("");
+          renderOrbit(all);
+          set("agg-online", all.length);
+          var aggF = fmtHash(all.reduce(function (a, n) { return a + n.st.hashrate_khs; }, 0));
           set("agg-hash", aggF.v);
           set("agg-hash-unit", aggF.u);
-          var withTemp = nodes.filter(function (n) { return n.st.temp_c > 0; });
+          var withTemp = all.filter(function (n) { return n.st.temp_c > 0; });
           set("agg-temp", withTemp.length
             ? (withTemp.reduce(function (a, n) { return a + n.st.temp_c; }, 0) / withTemp.length).toFixed(1) : "—");
-          set("scanline", "Scan complete — " + nodes.length + " device(s). Sorted by worker name; new scan every 10 s.");
+          set("scanline", "Scan complete — " + all.length + " device(s)" +
+            (frn.length ? " (" + frn.length + " third-party)" : "") +
+            ". Sorted by worker name; new scan every 10 s.");
         });
       }).catch(function () {});
     }
@@ -505,6 +593,15 @@
       refresh();
     });
 
+    var orbitEl = $("orbit");
+    if (orbitEl) orbitEl.addEventListener("click", function (ev) {
+      var g = ev.target.closest(".node");
+      if (!g) return;
+      var el = document.getElementById("card-" + g.dataset.host);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+
+    initPeersEditor();
     refresh();
     setInterval(refresh, 10000);
   }
