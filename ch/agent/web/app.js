@@ -144,10 +144,58 @@
     var bf = $("btn-factory");           // factory reset não se aplica a PC
     if (bf) bf.remove();
     var br = $("btn-restart");           // restart aqui reinicia o processo do miner
-    if (br) br.textContent = "Restart miner";
+    if (br) {
+      br.textContent = "Restart miner";
+      // nó CPU/Android: atualização remota (git pull + rebuild + restart) pela interface
+      var up = document.createElement("button");
+      up.type = "button";
+      up.id = "btn-selfupdate";
+      up.className = "ch-btn ch-btn--ghost";
+      up.textContent = "Update node";
+      br.parentElement.insertBefore(up, br);
+      up.addEventListener("click", selfUpdate);
+    }
     var wifiCard = document.querySelector(".ch-wifi");
     if (wifiCard) wifiCard.remove();
     fitHeroSide();
+  }
+
+  function selfUpdate() {
+    var btn = $("btn-selfupdate");
+    if (!confirm("Update this node from GitHub? It will pull, rebuild if needed and restart — mining resumes automatically.")) return;
+    btn.disabled = true;
+    btn.textContent = "Updating…";
+    fetch("/api/update", { method: "POST" }).then(function (r) { return r.json(); }).then(function (d) {
+      if (d.error) throw new Error(d.error);
+      pollUpdate(btn, 0);
+    }).catch(function (e) {
+      btn.disabled = false; btn.textContent = "Update node";
+      alert("Update failed to start: " + e.message);
+    });
+  }
+
+  function pollUpdate(btn, misses) {
+    setTimeout(function () {
+      fetch("/api/update").then(function (r) { return r.json(); }).then(function (d) {
+        if (d.log && d.log.length) btn.textContent = "Updating… (" + d.log.length + ")";
+        if (d.done === "up-to-date") {
+          btn.textContent = "Up to date ✓";
+          setTimeout(function () { btn.disabled = false; btn.textContent = "Update node"; }, 4000);
+        } else if (d.done === "error") {
+          btn.disabled = false; btn.textContent = "Update node";
+          alert("Update failed:\n" + (d.log || []).join("\n"));
+        } else {
+          pollUpdate(btn, 0);   // running ou restarting
+        }
+      }).catch(function () {
+        // agent reiniciando — espera voltar e recarrega a página
+        if (misses > 60) { btn.textContent = "Node offline?"; return; }
+        btn.textContent = "Restarting node…";
+        fetch("/api/status").then(function (r) {
+          if (r.ok) location.reload(); else pollUpdate(btn, misses + 1);
+        }).catch(function () { pollUpdate(btn, misses + 1); });
+      });
+    }, 3000);
   }
 
   function fitHeroSide() {

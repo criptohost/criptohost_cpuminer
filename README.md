@@ -30,6 +30,7 @@ O CriptoHost CPUMiner é o irmão de mesa do [CriptoHost NerdOS](https://github.
 - 🕸️ **Entra no Fleet automaticamente** — mDNS `_criptohost._tcp`; sem multicast (datacenter/Android), peers estáticos por IP
 - 🔭 **Descobre mineradores de terceiros** — Bitaxe, NerdQAxe/NerdOctaxe (família AxeOS) na rede aparecem no Fleet em cartão âmbar com hashrate, temperatura, pool, MAC e versão
 - 🗺️ **Órbita da rede + edição de peers pela tela** — mapa vivo da frota e editor do `ch/peers.conf` direto no Fleet
+- 🔄 **Atualização pela interface** — botão "Update node" no dashboard faz git pull, recompila se o core mudou e reinicia miner+agent sozinho (essencial para Android e servidores remotos)
 - 🔁 **Supervisão** — o agent religa o miner se ele cair e loga o motivo
 
 ## 🖼️ Telas

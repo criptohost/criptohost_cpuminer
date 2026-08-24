@@ -270,6 +270,68 @@ def static_peers():
                         "ip": host, "port": int(port or 80)})
     return out
 
+# ---------- self-update (git pull pela interface) ----------
+update_state = {"running": False, "log": [], "done": None}
+
+def _up_log(msg):
+    update_state["log"].append(msg)
+    del update_state["log"][:-30]
+    log_event("conn", msg)
+
+def run_update():
+    def sh(cmd, timeout=1800):
+        r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True, timeout=timeout)
+        return r.returncode, (r.stdout + r.stderr).strip()
+    try:
+        _up_log("Update started — pulling from GitHub…")
+        rc, head_before = sh(["git", "rev-parse", "HEAD"])
+        rc, out = sh(["git", "pull", "--ff-only"], timeout=300)
+        if rc != 0:
+            _up_log("git pull failed: " + out[-200:])
+            update_state["done"] = "error"
+            return
+        if "Already up to date" in out or "Already up-to-date" in out:
+            _up_log("Node is already up to date.")
+            update_state["done"] = "up-to-date"
+            return
+        rc, changed = sh(["git", "diff", "--name-only", head_before.strip(), "HEAD"])
+        files = [f for f in changed.splitlines() if f.strip()]
+        _up_log(f"Updated {len(files)} file(s).")
+        core = [f for f in files
+                if not f.startswith(("ch/agent/web/", "docs/", "ch/conf/"))
+                and re.search(r"\.(c|h|S|am|ac|cpp)$|^Makefile|configure", f)]
+        if core:
+            _up_log("Mining core changed — rebuilding (this can take several minutes)…")
+            script = build_hint().lstrip("./")
+            rc, bout = sh(["bash", script], timeout=3600)
+            if rc != 0:
+                _up_log("Build failed — keeping the current binary. " + bout[-200:])
+                update_state["done"] = "error"
+                return
+            _up_log("Build OK.")
+        _up_log("Restarting node (agent + miner)…")
+        update_state["done"] = "restarting"
+        time.sleep(1.5)   # deixa a UI ler o estado
+        try:
+            if miner_proc and miner_proc.poll() is None:
+                miner_proc.terminate()   # o novo agent sobe um miner limpo
+                miner_proc.wait(5)
+        except Exception:
+            pass
+        if zc_state:
+            try:
+                zc_state["zc"].unregister_service(zc_state["info"])
+                zc_state["zc"].close()
+            except Exception:
+                pass
+        os.execv(sys.executable, [sys.executable, os.path.abspath(__file__)])
+    except Exception as e:
+        _up_log(f"Update error: {e.__class__.__name__}: {e}")
+        update_state["done"] = "error"
+    finally:
+        if update_state["done"] != "restarting":
+            update_state["running"] = False
+
 # ---------- mineradores de terceiros (AxeOS: Bitaxe, NerdQAxe/NerdOctaxe…) ----------
 foreign = {}        # ip -> status normalizado (contrato CH + platform="foreign")
 http_hosts = set()  # candidatos vistos no browse _http._tcp
@@ -431,6 +493,10 @@ class Handler(SimpleHTTPRequestHandler):
                                "wallet": f'{c["WALLET"]}.{c["WORKER"]}',
                                "password": c["PASSWORD"], "timezone": -3,
                                "fw": FW, "hardware": HW})
+        if p == "/api/update":
+            return self._json({"running": update_state["running"],
+                               "done": update_state["done"],
+                               "log": update_state["log"][-8:]})
         if p == "/api/peers":
             path = os.path.join(ROOT, "ch", "peers.conf")
             content = open(path).read() if os.path.exists(path) else ""
@@ -480,6 +546,12 @@ class Handler(SimpleHTTPRequestHandler):
                 f.write(content if content.endswith("\n") or not content else content + "\n")
             log_event("conn", "Fleet peers updated")
             return self._json({"ok": True})
+        if p == "/api/update":
+            if update_state["running"]:
+                return self._json({"error": "update already running"}, 409)
+            update_state.update(running=True, log=[], done=None)
+            threading.Thread(target=run_update, daemon=True).start()
+            return self._json({"ok": True, "started": True})
         if p == "/api/restart":
             threading.Thread(target=start_miner, daemon=True).start()
             return self._json({"ok": True, "restarting": True})
