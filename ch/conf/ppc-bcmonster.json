@@ -1,0 +1,15 @@
+{
+   "_comment" : "CriptoHost CPUMiner — BCMonster: Peercoin lottery diff 0.001 (endereco comeca com P)",
+   "_comment" : "Sem cadastro; taxa 1.5%; modo pool (senha x) ou solo (senha m=solo).",
+   "_comment" : "Dashboard: bcmonster.com/worker.html?address=SUA_WALLET",
+   "_comment" : "Uso: ./cpuminer -c ch/conf/ppc-bcmonster.json",
+
+   "algo" : "sha256d",
+   "url" : "stratum+tcp://bcmonster.com:9995",
+   "user" : "SUACARTEIRA_PPC.CH-CPU-01",
+   "pass" : "x",
+
+   "threads" : 0,
+   "api-bind" : "127.0.0.1:4048",
+   "quiet" : false
+}

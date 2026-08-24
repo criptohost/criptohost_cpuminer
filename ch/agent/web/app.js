@@ -41,6 +41,14 @@
       if (port === 3332 || port === 3432) return "BTC";
       if (port === 3347) return "PPC";
     }
+    if (host.indexOf("bcmonster") >= 0) {
+      if (port === 9996 || port === 4444 || port === 4445) return "DGB";
+      if (port === 9994 || port === 3555 || port === 3556) return "BCH";
+      if (port === 9995 || port === 6666 || port === 6667) return "PPC";
+      if (port === 9997 || port === 7777 || port === 7778) return "BC2";
+      if (port === 9998 || port === 8888 || port === 8889) return "BCH2";
+      return "BTC";
+    }
     if (host.indexOf("digi") >= 0 || host.indexOf("hmpool") >= 0 || host.indexOf("fusionpool") >= 0 || host.indexOf("dgb.") === 0) return "DGB";
     if (host.indexOf("xec") >= 0) return "XEC";
     if (host.indexOf("bch") >= 0) return "BCH";
@@ -78,6 +86,8 @@
     }
     if (host.indexOf("fusionpool") >= 0)
       return "https://fusionpool.pro/";
+    if (host.indexOf("bcmonster") >= 0)
+      return addr ? "https://bcmonster.com/worker.html?address=" + encodeURIComponent(addr) : "https://bcmonster.com";
     if (host.indexOf("nerdminers.org") >= 0)
       return addr ? "https://nerdminers.org/?address=" + encodeURIComponent(addr) : "https://nerdminers.org";
     if (host.indexOf("nerdminer.io") >= 0)
