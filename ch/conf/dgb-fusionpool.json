@@ -1,0 +1,15 @@
+{
+   "_comment" : "CriptoHost CPUMiner — DigiByte FusionPool (BR, hibrida 70/25/5, sem cadastro)",
+   "_comment" : "Porta 3333 = Micro Miners (20 kH/s a 99 GH/s): ESP32, CPU e Android.",
+   "_comment" : "Troque SUACARTEIRA pela sua wallet DGB; o sufixo .CH-CPU-01 e o worker.",
+   "_comment" : "Uso: ./cpuminer -c ch/conf/dgb-fusionpool.json",
+
+   "algo" : "sha256d",
+   "url" : "stratum+tcp://dgb.fusionpool.pro:3333",
+   "user" : "SUACARTEIRA.CH-CPU-01",
+   "pass" : "x",
+
+   "threads" : 0,
+   "api-bind" : "127.0.0.1:4048",
+   "quiet" : false
+}

@@ -41,7 +41,7 @@
       if (port === 3332 || port === 3432) return "BTC";
       if (port === 3347) return "PPC";
     }
-    if (host.indexOf("digi") >= 0 || host.indexOf("hmpool") >= 0) return "DGB";
+    if (host.indexOf("digi") >= 0 || host.indexOf("hmpool") >= 0 || host.indexOf("fusionpool") >= 0 || host.indexOf("dgb.") === 0) return "DGB";
     if (host.indexOf("xec") >= 0) return "XEC";
     if (host.indexOf("bch") >= 0) return "BCH";
     if (host.indexOf("peercoin") >= 0 || host.indexOf("ppc") >= 0) return "PPC";
@@ -76,6 +76,8 @@
       var base = host.indexOf("digi") >= 0 ? "https://digi.hmpool.io" : "https://hmpool.io";
       return addr ? base + "/miner.html?address=" + encodeURIComponent(addr) : base + "/miner.html";
     }
+    if (host.indexOf("fusionpool") >= 0)
+      return "https://fusionpool.pro/";
     if (host.indexOf("nerdminers.org") >= 0)
       return addr ? "https://nerdminers.org/?address=" + encodeURIComponent(addr) : "https://nerdminers.org";
     if (host.indexOf("nerdminer.io") >= 0)
