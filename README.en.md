@@ -28,7 +28,7 @@ CriptoHost CPUMiner is the desktop sibling of [CriptoHost NerdOS](https://github
 - 🧙 **Interactive CLI** — menu for wallet, pool, worker, threads and password, with persistence (`./ch/mine.sh`)
 - 📊 **Same dashboard as the boards** — the CH Agent serves the UI on port 8091: hashrate, shares, best difficulty, error log with real reject reasons
 - 🕸️ **Joins the Fleet automatically** — mDNS `_criptohost._tcp`; no multicast (datacenter/Android)? static peers by IP
-- 🔭 **Discovers third-party miners** — Bitaxe, NerdQAxe/NerdOctaxe (AxeOS family) on your network show up on the Fleet as amber cards with hashrate, temperature, pool, MAC and version
+- 🔭 **Discovers third-party miners** — Bitaxe, NerdQAxe/NerdOctaxe (AxeOS family) and Antminer ASICs (stock firmware or Braiins OS, via the CGMiner API on port 4028) show up on the Fleet as amber cards with hashrate, temperature, pool and version
 - 🗺️ **Network orbit + on-screen peers editing** — a live fleet map and a `ch/peers.conf` editor right on the Fleet page
 - 🔄 **Update from the dashboard** — the "Update node" button pulls from GitHub, rebuilds only if the core changed and restarts miner+agent by itself (essential for Android and remote servers)
 - 🔁 **Supervision** — the agent restarts the miner if it dies and logs why

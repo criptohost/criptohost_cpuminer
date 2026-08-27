@@ -372,13 +372,86 @@ def probe_foreign(ip, port=80):
         "templates": 0, "valid_blocks": 0,
     }
 
+def cgminer_cmd(ip, cmd, port=4028, timeout=3):
+    """API CGMiner/BMMiner (Antminer stock, Braiins OS, cgminer/bfgminer)."""
+    s = socket.create_connection((ip, port), timeout=timeout)
+    try:
+        s.sendall(json.dumps({"command": cmd}).encode())
+        s.shutdown(socket.SHUT_WR)
+        data = b""
+        while True:
+            chunk = s.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+    finally:
+        s.close()
+    txt = data.rstrip(b"\x00").decode("utf8", "replace")
+    # firmware stock emite JSON malformado no stats ("}{" entre objetos)
+    return json.loads(txt.replace("}{", "},{"))
+
+def probe_cgminer(ip, port=4028):
+    """ASICs (Antminer S9/S19…, Braiins OS) na porta 4028 — normaliza p/ contrato CH."""
+    try:
+        summ = cgminer_cmd(ip, "summary")["SUMMARY"][0]
+    except Exception:
+        return None
+
+    def opt(cmd, key):
+        try:
+            return cgminer_cmd(ip, cmd)[key]
+        except Exception:
+            return []
+
+    ver = (opt("version", "VERSION") or [{}])[0]
+    pools_ = opt("pools", "POOLS")
+    alive = next((p for p in pools_ if p.get("Status") == "Alive"), pools_[0] if pools_ else {})
+    temps = opt("temps", "TEMPS")          # Braiins OS
+    devd = opt("devdetails", "DEVDETAILS")
+
+    mhs = float(summ.get("MHS 5s") or summ.get("MHS av") or 0)
+    ghs = float(summ.get("GHS 5s") or summ.get("GHS av") or 0)  # stock Antminer
+    khs = mhs * 1000 if mhs else ghs * 1e6
+    temp = max((float(t.get("Chip", 0) or 0) for t in temps), default=0)
+    if not temp:  # stock: temp2_1..temp2_N no stats
+        try:
+            st0 = next(s for s in cgminer_cmd(ip, "stats")["STATS"] if any(k.startswith("temp2_") for k in s))
+            temp = max(float(v) for k, v in st0.items() if k.startswith("temp2_") and v)
+        except Exception:
+            pass
+    user = str(alive.get("User", ""))
+    worker = user.split(".")[-1] if "." in user else f"asic-{ip.replace('.', '-')}"
+    url = str(alive.get("URL", "")).replace("stratum+tcp://", "").replace("stratum2+tcp://", "")
+    coin = next((c.upper() for c in ("dgb", "bch", "xec", "ppc") if c in url.lower()), "BTC")
+    hardware = ver.get("Type") or (devd[0].get("Model") if devd else "") or "ASIC"
+    vendor = "Braiins OS" if "BOSer" in ver else ("Antminer" if "antminer" in str(hardware).lower() else "CGMiner")
+    return {
+        "worker": worker, "hostname": worker.lower(),
+        "ip": ip, "port": 80,   # UI web da máquina; a API 4028 é só do agent
+        "platform": "foreign", "vendor": vendor,
+        "hardware": hardware,
+        "fw": str(ver.get("BOSer") or ver.get("CompileTime") or ver.get("Miner") or ""),
+        "status": "mining" if khs > 0 else "idle",
+        "hashrate_khs": round(khs, 1),
+        "temp_c": temp, "rssi_dbm": 0,
+        "uptime_s": int(summ.get("Elapsed", 0) or 0),
+        "pool": url,
+        "mac": "", "coin": coin,
+        "shares": {"found": int(summ.get("Accepted", 0)) + int(summ.get("Rejected", 0)),
+                   "sent": int(summ.get("Accepted", 0)) + int(summ.get("Rejected", 0)),
+                   "accepted": int(summ.get("Accepted", 0)),
+                   "rejected": int(summ.get("Rejected", 0)), "pending": 0},
+        "best_difficulty": summ.get("Best Share", 0),
+        "templates": 0, "valid_blocks": int(summ.get("Found Blocks", 0) or 0),
+    }
+
 def foreign_scan_loop():
     while True:
         my = lan_ip()
         ch_ips = {p["ip"] for p in peers.values()}
         cands = (http_hosts | {sp["ip"] for sp in static_peers()}) - ch_ips - {my, "127.0.0.1"}
         for ip in sorted(cands):
-            info = probe_foreign(ip)
+            info = probe_foreign(ip) or probe_cgminer(ip)
             if info:
                 foreign[ip] = info
             elif ip in foreign:
