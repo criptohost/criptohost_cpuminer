@@ -501,11 +501,16 @@
   function initFleet() {
     function isForeign(st) { return st.platform === "foreign"; }
 
+    // memória entre ciclos: nó que falha um fetch ou fica fora de uma query
+    // mDNS vira "offline" por até 6 ciclos (~1 min) antes de sumir do grid
+    var seenPeers = {};
+
     function card(st, ip) {
       var host = st.hostname || String(st.worker || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
       var frn = isForeign(st);
       var coin = frn ? (st.coin || "BTC") : miningSymbol(st.pool);
-      return '<article class="ch-card ch-devcard' + (frn ? " ch-devcard--foreign" : "") + '" id="card-' + host + '">' +
+      return '<article class="ch-card ch-devcard' + (frn ? " ch-devcard--foreign" : "") +
+        (st._stale ? " ch-devcard--stale" : "") + '" id="card-' + host + '">' +
         "<h3>" + st.worker +
         (frn ? ' <span class="ch-pill ch-pill--foreign" style="font-size:0.6rem;padding:3px 9px">' + (st.vendor || "3rd-party") + "</span>" : "") +
         ' <span class="' + (st.status === "mining" ? "ch-badge--mining" : "ch-badge--offline") + '" style="font-size:0.72rem;font-weight:700">● ' +
@@ -651,7 +656,21 @@
             .then(function (st) { return { st: st, ip: (p.port && p.port != 80) ? p.ip + ":" + p.port : p.ip }; })
             .catch(function () { return null; });
         })).then(function (res) {
-          res.filter(Boolean).forEach(function (n) { nodes.push(n); });
+          var fresh = {};
+          res.filter(Boolean).forEach(function (n) {
+            fresh[n.st.worker] = true;
+            delete n.st._stale;
+            seenPeers[n.st.worker] = { st: n.st, ip: n.ip, missed: 0 };
+          });
+          Object.keys(seenPeers).forEach(function (k) {
+            var s = seenPeers[k];
+            if (!fresh[k]) {
+              if (++s.missed > 6) { delete seenPeers[k]; return; }
+              s.st._stale = true;
+              s.st.status = "offline";
+            }
+            if (k !== fleet.self.worker) nodes.push({ st: s.st, ip: s.ip });
+          });
           nodes.sort(function (a, b) { return String(a.st.worker).localeCompare(String(b.st.worker)); });
           // mineradores de terceiros (Bitaxe/NerdQAxe…) já vêm com status completo do agent
           var frn = (fleet.foreign || []).map(function (f) {
@@ -660,11 +679,12 @@
           var all = nodes.concat(frn);
           $("fleet-cards").innerHTML = all.map(function (n) { return card(n.st, n.ip); }).join("");
           renderOrbit(all);
-          set("agg-online", all.length);
-          var aggF = fmtHash(all.reduce(function (a, n) { return a + n.st.hashrate_khs; }, 0));
+          var live = all.filter(function (n) { return !n.st._stale; });
+          set("agg-online", live.length);
+          var aggF = fmtHash(live.reduce(function (a, n) { return a + n.st.hashrate_khs; }, 0));
           set("agg-hash", aggF.v);
           set("agg-hash-unit", aggF.u);
-          var withTemp = all.filter(function (n) { return n.st.temp_c > 0; });
+          var withTemp = live.filter(function (n) { return n.st.temp_c > 0; });
           set("agg-temp", withTemp.length
             ? (withTemp.reduce(function (a, n) { return a + n.st.temp_c; }, 0) / withTemp.length).toFixed(1) : "—");
           set("scanline", "Scan complete — " + all.length + " device(s)" +

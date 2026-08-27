@@ -549,6 +549,7 @@ img { display: block; max-width: 100%; }
 .ch-orbit .node .pulse { transform-box: fill-box; transform-origin: center; }
 
 /* ---- Fleet: card de minerador de terceiros (fora do ecossistema CH) ---- */
+.ch-devcard--stale { opacity: 0.55; }
 .ch-devcard--foreign { border-color: var(--ch-warning); }
 .ch-devcard--foreign .ip { color: var(--ch-warning); }
 .ch-pill--foreign { color: var(--ch-warning); border: 1px solid var(--ch-warning);
