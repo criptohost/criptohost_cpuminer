@@ -11,7 +11,7 @@ Faz o PC falar o contrato do CriptoHost NerdOS:
 Uso: ./ch/agent/run.sh   (ou: python3 ch/agent/agent.py)
 Dependência opcional: zeroconf (sem ela tudo funciona, menos o mDNS).
 """
-import json, os, platform, re, shutil, signal, socket, subprocess, sys, threading, time, urllib.request, uuid
+import hmac, ipaddress, json, os, platform, re, secrets, shutil, signal, socket, subprocess, sys, threading, time, urllib.request, uuid
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -20,8 +20,23 @@ WEB = os.path.join(HERE, "web")
 CONF = os.path.join(ROOT, "ch", "miner.conf")
 MINER_API = ("127.0.0.1", 4048)
 HTTP_PORT = int(os.environ.get("CH_AGENT_PORT", "8091"))
-FW = "v0.1.0-cpu"
+FW = "v0.2.0-cpu"
 SERVICE = "_criptohost._tcp.local."
+
+# ---------- token de acesso (nó exposto na internet) ----------
+# Regra "auto": request de IP privado/loopback passa livre (LAN = confiável);
+# IP público exige X-CH-Token. CH_AUTH=always força token para todos; =off desliga.
+AUTH_MODE = os.environ.get("CH_AUTH", "auto")
+TOKEN_FILE = os.path.join(HERE, "token")
+
+def load_token():
+    if not os.path.exists(TOKEN_FILE):
+        with open(TOKEN_FILE, "w") as f:
+            f.write(secrets.token_urlsafe(24))
+        os.chmod(TOKEN_FILE, 0o600)
+    return open(TOKEN_FILE).read().strip()
+
+TOKEN = load_token()
 
 # ---------- config (ch/miner.conf, KEY="VALUE") ----------
 DEFAULTS = {"WALLET": "", "POOL_NAME": "dgb-hmpool",
@@ -256,19 +271,87 @@ def status_json():
         "valid_blocks": int(summary.get("SOL", 0) or 0),
     }
 
+# ---------- lista de peers replicada (gossip) ----------
+# ch/peers.conf é um documento único replicado pela frota inteira: cada linha é
+# 'ip[:porta] [token]' (porta default 80; token = acesso a nó exposto). ch/peers.rev
+# guarda a revisão — editou em qualquer nó, a revisão maior vence e propaga.
+PEERS_FILE = os.path.join(ROOT, "ch", "peers.conf")
+REV_FILE = os.path.join(ROOT, "ch", "peers.rev")
+peers_lock = threading.Lock()
+
+PEER_LINE = re.compile(r"^[A-Za-z0-9._-]+(:\d{1,5})?( [A-Za-z0-9_-]+)?$")
+
+def peers_content():
+    return open(PEERS_FILE).read() if os.path.exists(PEERS_FILE) else ""
+
+def peers_rev():
+    try:
+        return int(open(REV_FILE).read().strip())
+    except (OSError, ValueError):
+        return 0
+
+def peers_validate(content):
+    """Retorna a primeira linha inválida, ou None se tudo ok."""
+    if len(content) > 8192:
+        return "peers list too large"
+    for ln in content.splitlines():
+        ln = ln.split("#")[0].strip()
+        if ln and not PEER_LINE.match(ln):
+            return ln
+    return None
+
+def peers_save(content, rev):
+    with peers_lock:
+        with open(PEERS_FILE, "w") as f:
+            f.write(content if content.endswith("\n") or not content else content + "\n")
+        with open(REV_FILE, "w") as f:
+            f.write(str(rev))
+
 def static_peers():
-    """ch/peers.conf: um nó por linha, 'ip[:porta]' (porta default 80). # comenta."""
-    path = os.path.join(ROOT, "ch", "peers.conf")
     out = []
-    if os.path.exists(path):
-        for line in open(path):
-            line = line.split("#")[0].strip()
-            if not line:
-                continue
-            host, _, port = line.partition(":")
-            out.append({"worker": f"peer-{host}", "fw": "?", "hardware": "?",
-                        "ip": host, "port": int(port or 80)})
+    for line in peers_content().splitlines():
+        line = line.split("#")[0].strip()
+        if not line:
+            continue
+        hostport, _, tok = line.partition(" ")
+        host, _, port = hostport.partition(":")
+        out.append({"worker": f"peer-{host}", "fw": "?", "hardware": "?",
+                    "ip": host, "port": int(port or 80), "token": tok.strip()})
     return out
+
+def peers_http(ip, port, tok, data=None, timeout=4):
+    """GET/POST /api/peers de um vizinho, com token quando a linha dele tem."""
+    req = urllib.request.Request(
+        f"http://{ip}:{port}/api/peers",
+        data=json.dumps(data).encode() if data is not None else None,
+        headers={"X-CH-Token": tok} if tok else {})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.load(r)
+
+def peers_sync_loop():
+    """Gossip: revisão maior vence. Pull do vizinho mais novo; push para o mais
+    velho (push cobre VPS, que não alcança a rede de casa para puxar)."""
+    while True:
+        time.sleep(60)
+        my_ip = lan_ip()
+        targets = {(p["ip"], p["port"], p.get("token", "")) for p in static_peers()}
+        targets |= {(p["ip"], p["port"], "") for p in peers.values()}
+        for ip, port, tok in sorted(targets):
+            if ip == my_ip and port == HTTP_PORT:
+                continue
+            try:
+                theirs = peers_http(ip, port, tok)
+                trev = int(theirs.get("rev", 0) or 0)
+                mine = peers_rev()
+                if trev > mine and "content" in theirs:
+                    content = str(theirs["content"])
+                    if peers_validate(content) is None:
+                        peers_save(content, trev)
+                        log_event("conn", f"Fleet list updated from {ip} (rev {trev})")
+                elif mine > trev:
+                    peers_http(ip, port, tok, data={"content": peers_content(), "rev": mine})
+            except Exception:
+                pass
 
 # ---------- self-update (git pull pela interface) ----------
 update_state = {"running": False, "log": [], "done": None}
@@ -537,14 +620,39 @@ class Handler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b)
 
+    def _authorized(self):
+        if AUTH_MODE == "off":
+            return True
+        if AUTH_MODE != "always":
+            try:
+                if ipaddress.ip_address(self.client_address[0].split("%")[0]).is_private:
+                    return True
+            except ValueError:
+                pass
+        tok = self.headers.get("X-CH-Token", "")
+        if not tok and "token=" in self.path:
+            m = re.search(r"[?&]token=([A-Za-z0-9_-]+)", self.path)
+            tok = m.group(1) if m else ""
+        return bool(tok) and hmac.compare_digest(tok, TOKEN)
+
+    def _gate(self):
+        """/api/* de origem pública exige token; estáticos ficam livres (a tela
+        de 'cole o token' precisa carregar)."""
+        if not self.path.startswith("/api/") or self._authorized():
+            return True
+        self._json({"error": "unauthorized"}, 401)
+        return False
+
     def do_OPTIONS(self):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-CH-Token")
         self.end_headers()
 
     def do_GET(self):
+        if not self._gate():
+            return
         p = self.path.split("?")[0]
         if p == "/api/status": return self._json(status_json())
         if p == "/api/events": return self._json(events)
@@ -552,11 +660,14 @@ class Handler(SimpleHTTPRequestHandler):
         if p == "/api/fleet":
             self_st = status_json()
             plist = [x for x in peers.values() if x["worker"] != self_st["worker"]]
-            # peers estáticos (ch/peers.conf): redes sem mDNS — datacenter, Android
+            # peers estáticos (ch/peers.conf): redes sem mDNS — datacenter, Android.
+            # A lista replicada inclui todo mundo; cada nó pula a própria entrada.
             seen = {(x["ip"], x["port"]) for x in plist}
+            my = lan_ip()
             for sp in static_peers():
-                if (sp["ip"], sp["port"]) not in seen:
-                    plist.append(sp)
+                if (sp["ip"], sp["port"]) in seen or (sp["ip"] == my and sp["port"] == HTTP_PORT):
+                    continue
+                plist.append(sp)
             return self._json({"self": self_st, "peers": plist,
                                "foreign": list(foreign.values())})
         if p == "/api/config":
@@ -571,9 +682,8 @@ class Handler(SimpleHTTPRequestHandler):
                                "done": update_state["done"],
                                "log": update_state["log"][-8:]})
         if p == "/api/peers":
-            path = os.path.join(ROOT, "ch", "peers.conf")
-            content = open(path).read() if os.path.exists(path) else ""
-            return self._json({"content": content, "editable": True})
+            return self._json({"content": peers_content(), "rev": peers_rev(),
+                               "editable": True})
         if p == "/api/wifi":
             return self._json({"ssid": "", "rssi": None})  # PC: sem gestão de Wi-Fi
         if p == "/api/ota/status":
@@ -581,6 +691,8 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
+        if not self._gate():
+            return
         p = self.path.split("?")[0]
         n = int(self.headers.get("Content-Length", 0) or 0)
         body = self.rfile.read(n) if n else b"{}"
@@ -606,19 +718,21 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 d = json.loads(body)
                 content = str(d.get("content", ""))
+                rev = int(d.get("rev", 0) or 0)
             except ValueError:
                 return self._json({"error": "invalid json"}, 400)
-            for ln in content.splitlines():
-                ln = ln.split("#")[0].strip()
-                if not ln:
-                    continue
-                host, _, port = ln.partition(":")
-                if not re.match(r"^[A-Za-z0-9._-]+$", host) or (port and not port.isdigit()):
-                    return self._json({"error": f"invalid line: {ln}"}, 400)
-            with open(os.path.join(ROOT, "ch", "peers.conf"), "w") as f:
-                f.write(content if content.endswith("\n") or not content else content + "\n")
-            log_event("conn", "Fleet peers updated")
-            return self._json({"ok": True})
+            bad = peers_validate(content)
+            if bad is not None:
+                return self._json({"error": f"invalid line: {bad}"}, 400)
+            mine = peers_rev()
+            if rev:                      # push de sync de outro nó: rev maior vence
+                if rev <= mine:
+                    return self._json({"ok": False, "stale": True, "rev": mine})
+            else:                        # edição humana: revisão nova, monotônica
+                rev = max(int(time.time()), mine + 1)
+            peers_save(content, rev)
+            log_event("conn", f"Fleet peers updated (rev {rev})")
+            return self._json({"ok": True, "rev": rev})
         if p == "/api/update":
             if update_state["running"]:
                 return self._json({"error": "update already running"}, 409)
@@ -649,9 +763,13 @@ def main():
     threading.Thread(target=poll_miner, daemon=True).start()
     threading.Thread(target=tail_miner_log, daemon=True).start()
     threading.Thread(target=foreign_scan_loop, daemon=True).start()
+    threading.Thread(target=peers_sync_loop, daemon=True).start()
     mdns_setup()
     start_miner()
     print(f"[agent] Dashboard: http://{lan_ip()}:{HTTP_PORT}  (local: http://localhost:{HTTP_PORT})")
+    if AUTH_MODE != "off":
+        print(f"[agent] Acesso remoto (IP público exige token): "
+              f"http://SEU-IP:{HTTP_PORT}/?token={TOKEN}  — guarde este link")
     def bye(*_):
         if zc_state:   # remove o registro mDNS para não colidir no próximo start
             try:

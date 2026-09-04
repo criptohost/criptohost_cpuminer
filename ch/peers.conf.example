@@ -1,5 +1,9 @@
-# CriptoHost CPUMiner — peers estáticos do Fleet (copie para ch/peers.conf)
-# Para redes onde o mDNS não alcança (servidores em datacenter, Android).
-# Um nó por linha: ip[:porta]  — porta default 80 (placas ESP32). Ex.:
+# CriptoHost — lista de peers da frota (copie para ch/peers.conf)
+# Documento REPLICADO: edite em qualquer nó (pela tela Fleet ou aqui) e todos os
+# outros sincronizam sozinhos em ~1 min — revisão mais nova vence (ch/peers.rev).
+# Um nó por linha: ip[:porta] [token]
+#   - porta default 80 (placas ESP32); agents usam 8091
+#   - token: acesso a nó exposto na internet (VPS) — impresso no start do agent
 # 192.168.1.205            # CH-8634 (ESP32)
 # 192.168.1.62:8091        # CH Agent num PC
+# 203.0.113.7:8091 kJ8x…   # agent num VPS (com token de acesso)

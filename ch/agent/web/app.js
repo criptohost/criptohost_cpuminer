@@ -5,6 +5,40 @@
   var $ = function (id) { return document.getElementById(id); };
   var set = function (id, v) { var el = $(id); if (el) el.textContent = v; };
 
+  // ---- token de acesso (nó exposto na internet) ----
+  // ?token= é salvo uma vez em localStorage e some da URL; todo fetch same-origin
+  // leva X-CH-Token. Um 401 pede o token e recarrega. Na LAN nada disso dispara.
+  var TOK = null, askedTok = false;
+  try {
+    var qs = new URLSearchParams(location.search);
+    if (qs.get("token")) {
+      localStorage.setItem("ch-token", qs.get("token"));
+      qs.delete("token");
+      history.replaceState(null, "", location.pathname + (qs.toString() ? "?" + qs : ""));
+    }
+    TOK = localStorage.getItem("ch-token");
+  } catch (e) {}
+  var rawFetch = window.fetch.bind(window);
+  window.fetch = function (url, opts) {
+    var local = String(url).charAt(0) === "/";
+    if (TOK && local) {
+      opts = opts || {};
+      opts.headers = opts.headers || {};
+      opts.headers["X-CH-Token"] = TOK;
+    }
+    return rawFetch(url, opts).then(function (r) {
+      if (r.status === 401 && local && !askedTok) {
+        askedTok = true;
+        var t = prompt("This node requires an access token (printed at agent startup):");
+        if (t) {
+          try { localStorage.setItem("ch-token", t.trim()); } catch (e) {}
+          location.reload();
+        }
+      }
+      return r;
+    });
+  };
+
   function fmtUptime(s) {
     var d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600),
         m = Math.floor(s % 3600 / 60), ss = s % 60;
@@ -505,10 +539,11 @@
     // mDNS vira "offline" por até 6 ciclos (~1 min) antes de sumir do grid
     var seenPeers = {};
 
-    function card(st, ip) {
+    function card(st, ip, tok) {
       var host = st.hostname || String(st.worker || "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
       var frn = isForeign(st);
       var coin = frn ? (st.coin || "BTC") : miningSymbol(st.pool);
+      var tq = tok ? "?token=" + encodeURIComponent(tok) : "";
       return '<article class="ch-card ch-devcard' + (frn ? " ch-devcard--foreign" : "") +
         (st._stale ? " ch-devcard--stale" : "") + '" id="card-' + host + '">' +
         "<h3>" + st.worker +
@@ -531,10 +566,10 @@
         '<div class="ch-actions">' +
         (frn
           ? '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/" target="_blank" rel="noopener">Open UI</a>'
-          : '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/" target="_blank" rel="noopener">Home</a>' +
-            '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/config.html">Config</a>' +
-            (isCpuNode(st) ? "" : '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/ota.html">OTA</a>') +
-            '<button type="button" class="ch-btn ch-btn--danger" data-act="restart" data-ip="' + ip + '">Restart</button>') +
+          : '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/' + tq + '" target="_blank" rel="noopener">Home</a>' +
+            '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/config.html' + tq + '">Config</a>' +
+            (isCpuNode(st) ? "" : '<a class="ch-btn ch-btn--ghost" href="http://' + ip + '/ota.html' + tq + '">OTA</a>') +
+            '<button type="button" class="ch-btn ch-btn--danger" data-act="restart" data-ip="' + ip + '" data-tok="' + (tok || "") + '">Restart</button>') +
         "</div></article>";
     }
 
@@ -651,16 +686,18 @@
         var nodes = [{ st: fleet.self, ip: location.host }];
         var peers = fleet.peers.filter(function (p) { return p.worker !== fleet.self.worker; });
         Promise.all(peers.map(function (p) {
-          return fetch("http://" + p.ip + ":" + p.port + "/api/status", { signal: AbortSignal.timeout(4000) })
+          var opts = { signal: AbortSignal.timeout(4000) };
+          if (p.token) opts.headers = { "X-CH-Token": p.token };  // nó exposto (VPS)
+          return fetch("http://" + p.ip + ":" + p.port + "/api/status", opts)
             .then(function (r) { return r.json(); })
-            .then(function (st) { return { st: st, ip: (p.port && p.port != 80) ? p.ip + ":" + p.port : p.ip }; })
+            .then(function (st) { return { st: st, ip: (p.port && p.port != 80) ? p.ip + ":" + p.port : p.ip, tok: p.token || "" }; })
             .catch(function () { return null; });
         })).then(function (res) {
           var fresh = {};
           res.filter(Boolean).forEach(function (n) {
             fresh[n.st.worker] = true;
             delete n.st._stale;
-            seenPeers[n.st.worker] = { st: n.st, ip: n.ip, missed: 0 };
+            seenPeers[n.st.worker] = { st: n.st, ip: n.ip, tok: n.tok, missed: 0 };
           });
           Object.keys(seenPeers).forEach(function (k) {
             var s = seenPeers[k];
@@ -669,7 +706,7 @@
               s.st._stale = true;
               s.st.status = "offline";
             }
-            if (k !== fleet.self.worker) nodes.push({ st: s.st, ip: s.ip });
+            if (k !== fleet.self.worker) nodes.push({ st: s.st, ip: s.ip, tok: s.tok });
           });
           nodes.sort(function (a, b) { return String(a.st.worker).localeCompare(String(b.st.worker)); });
           // mineradores de terceiros (Bitaxe/NerdQAxe…) já vêm com status completo do agent
@@ -677,7 +714,7 @@
             return { st: f, ip: (f.port && f.port != 80) ? f.ip + ":" + f.port : f.ip };
           }).sort(function (a, b) { return String(a.st.worker).localeCompare(String(b.st.worker)); });
           var all = nodes.concat(frn);
-          $("fleet-cards").innerHTML = all.map(function (n) { return card(n.st, n.ip); }).join("");
+          $("fleet-cards").innerHTML = all.map(function (n) { return card(n.st, n.ip, n.tok); }).join("");
           renderOrbit(all);
           var live = all.filter(function (n) { return !n.st._stale; });
           set("agg-online", live.length);
@@ -699,7 +736,9 @@
       if (!b) return;
       var act = b.dataset.act, ip = b.dataset.ip;
       if (act === "restart" && !confirm("Restart " + ip + "?")) return;
-      fetch("http://" + ip + "/api/" + act, { method: "POST" }).catch(function () {});
+      var opts = { method: "POST" };
+      if (b.dataset.tok) opts.headers = { "X-CH-Token": b.dataset.tok };
+      fetch("http://" + ip + "/api/" + act, opts).catch(function () {});
     });
     var rescan = $("btn-rescan");
     if (rescan) rescan.addEventListener("click", function () {

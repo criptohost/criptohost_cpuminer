@@ -61,8 +61,8 @@
 
     <div class="ch-card ch-peers-editor" id="peers-card" hidden style="margin-top: var(--ch-gap)">
       <div class="ch-metric-label"><span class="hl">Fleet</span> Peers</div>
-      <p class="ch-muted" style="margin: 8px 0 10px">Static nodes for networks where mDNS can't reach (servers, Android). One <code>ip[:port]</code> per line — port defaults to 80 (boards). <code>#</code> starts a comment.</p>
-      <textarea id="peers-text" spellcheck="false" placeholder="192.168.1.205        # board&#10;192.168.1.62:8091    # desktop agent"></textarea>
+      <p class="ch-muted" style="margin: 8px 0 10px">Shared fleet list — edit it on any node and every node syncs it automatically. One <code>ip[:port] [token]</code> per line: port defaults to 80 (boards); add the node's access token after a space for internet-exposed nodes (VPS). <code>#</code> starts a comment.</p>
+      <textarea id="peers-text" spellcheck="false" placeholder="192.168.1.205          # board&#10;192.168.1.62:8091      # desktop agent&#10;203.0.113.7:8091 kJ8x… # VPS (with token)"></textarea>
       <div class="ch-actions">
         <button type="button" class="ch-btn" id="btn-peers-save">Save peers</button>
         <span class="ch-muted" id="peers-msg"></span>

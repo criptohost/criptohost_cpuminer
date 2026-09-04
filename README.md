@@ -27,7 +27,9 @@ O CriptoHost CPUMiner é o irmão de mesa do [CriptoHost NerdOS](https://github.
 - ⚡ **Caminho rápido da sua CPU** — SHA-NI/AVX2 no x86, crypto ARMv8 no Apple Silicon e ARM — detectado automaticamente
 - 🧙 **CLI interativo** — menu para wallet, pool, worker, threads e password, com persistência (`./ch/mine.sh`)
 - 📊 **Mesmo dashboard das placas** — CH Agent serve a UI na porta 8091: hashrate, shares, best difficulty, log de erros com motivo real
-- 🕸️ **Entra no Fleet automaticamente** — mDNS `_criptohost._tcp`; sem multicast (datacenter/Android), peers estáticos por IP
+- 🕸️ **Entra no Fleet automaticamente** — mDNS `_criptohost._tcp`; sem multicast (datacenter/Android), lista de peers por IP
+- 🔁 **Lista de peers replicada** — edite a lista em qualquer nó (PC ou placa) e todos os outros sincronizam sozinhos em ~1 min; nó novo recebe a frota inteira no primeiro ciclo
+- 🔐 **Token de acesso para nós expostos** — requests de IP público exigem `X-CH-Token` (gerado sozinho, impresso no start); na LAN nada muda. `CH_AUTH=always|off` ajusta
 - 🔭 **Descobre mineradores de terceiros** — Bitaxe, NerdQAxe/NerdOctaxe (família AxeOS) e ASICs Antminer (firmware stock ou Braiins OS, via API CGMiner na porta 4028) aparecem no Fleet em cartão âmbar com hashrate, temperatura, pool e versão
 - 🗺️ **Órbita da rede + edição de peers pela tela** — mapa vivo da frota e editor do `ch/peers.conf` direto no Fleet
 - 🔄 **Atualização pela interface** — botão "Update node" no dashboard faz git pull, recompila se o core mudou e reinicia miner+agent sozinho (essencial para Android e servidores remotos)
@@ -98,7 +100,7 @@ O CH Agent faz o PC falar o contrato CriptoHost (`_criptohost._tcp` + `GET /api/
 | **criptohost_cpuminer** (este) | Windows, Linux e macOS (CPU) | 20–165 MH/s |
 | [criptohost_mobile](https://github.com/criptohost/criptohost_mobile) | Android via Termux (iOS = painel) | ~47 MH/s |
 
-**Rede sem mDNS** (datacenter, Android): copie `ch/peers.conf.example` para `ch/peers.conf` com um `ip[:porta]` por linha — o Fleet soma esses nós aos descobertos.
+**Rede sem mDNS** (datacenter, Android): edite a lista de peers pela tela Fleet (ou `ch/peers.conf`), um `ip[:porta] [token]` por linha — o Fleet soma esses nós aos descobertos, e a lista **replica sozinha para a frota inteira** (revisão mais nova vence). O `token` dá acesso a nós expostos na internet: cada agent gera o seu no primeiro start e imprime o link `http://IP:8091/?token=…` — de IP público, a API só responde com ele.
 
 ## 🔌 API
 
