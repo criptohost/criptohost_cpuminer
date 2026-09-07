@@ -20,7 +20,7 @@ WEB = os.path.join(HERE, "web")
 CONF = os.path.join(ROOT, "ch", "miner.conf")
 MINER_API = ("127.0.0.1", 4048)
 HTTP_PORT = int(os.environ.get("CH_AGENT_PORT", "8091"))
-FW = "v0.2.0-cpu"
+FW = "v0.3.0-cpu"
 SERVICE = "_criptohost._tcp.local."
 
 # ---------- token de acesso (nó exposto na internet) ----------
