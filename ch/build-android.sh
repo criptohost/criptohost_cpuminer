@@ -8,7 +8,21 @@ cd "$(dirname "$0")/.."
 
 [ -n "${PREFIX:-}" ] && case "$PREFIX" in *com.termux*) : ;; *) echo "⚠ Rode dentro do Termux"; exit 1;; esac
 
+# cpuminer-opt só compila em 64 bits (x86_64+SSE2 ou aarch64+NEON). Termux 32 bits (armv7l/armv8l) —
+# comum em TV box — falha com "use of undeclared identifier 'v128u32_t'" em simd-utils/intrlv.h.
 ARCH=$(uname -m)
+case "$ARCH" in
+  aarch64|x86_64) : ;;
+  *)
+    ABIS=$(getprop ro.product.cpu.abilist 2>/dev/null || true)
+    echo "✗ Termux em 32 bits ($ARCH): o minerador precisa de 64 bits (aarch64)."
+    case "$ABIS" in
+      *arm64-v8a*) echo "  O aparelho é 64 bits ($ABIS), mas o Termux instalado é a versão 32 bits."
+                   echo "  Desinstale o Termux e instale o APK arm64-v8a (F-Droid escolhe o certo; no GitHub pegue termux-app_*_arm64-v8a.apk).";;
+      *)           echo "  O Android deste aparelho é só 32 bits (abilist: ${ABIS:-?}). Não há como rodar o minerador nele.";;
+    esac
+    exit 1;;
+esac
 if [ "$ARCH" = "aarch64" ]; then
   # SoCs Android (Snapdragon/Exynos/Tensor) têm as extensões crypto ARMv8
   MARCH="-march=armv8-a+crypto -flax-vector-conversions"
