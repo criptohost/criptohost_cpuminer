@@ -39,8 +39,8 @@ def load_token():
 TOKEN = load_token()
 
 # ---------- config (ch/miner.conf, KEY="VALUE") ----------
-DEFAULTS = {"WALLET": "", "POOL_NAME": "dgb-hmpool",
-            "POOL_URL": "stratum+tcp://digi.hmpool.io:3337",
+DEFAULTS = {"WALLET": "", "POOL_NAME": "dgb-fusionpool",
+            "POOL_URL": "stratum+tcp://dgb.fusionpool.pro:3333",
             "WORKER": "CH-CPU-01", "THREADS": "0", "PASSWORD": "X"}
 
 def load_conf():

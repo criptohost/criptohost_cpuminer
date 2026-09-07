@@ -1,0 +1,15 @@
+{
+   "_comment" : "CriptoHost CPUMiner — Bitcoin Cash II (BCH2) na FusionPool (BR, hibrida 70/25/5, sem cadastro)",
+   "_comment" : "Porta 4443 = Low Hash (100 MH/s a 299 GH/s, diff inicial 16): CPU desktop com 100 MH/s ou mais.",
+   "_comment" : "Abaixo de 100 MH/s (Android, TV box, CPU fraca) use bch2-fusionpool-android.json (porta 4442).",
+   "_comment" : "Carteira em wallet.bch2.org; payout automatico a partir de 1 BCH2. Uso: ./cpuminer -c ch/conf/bch2-fusionpool.json",
+
+   "algo" : "sha256d",
+   "url" : "stratum+tcp://bch2.fusionpool.pro:4443",
+   "user" : "SUACARTEIRA.CH-CPU-01",
+   "pass" : "x",
+
+   "threads" : 0,
+   "api-bind" : "127.0.0.1:4048",
+   "quiet" : false
+}

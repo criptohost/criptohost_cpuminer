@@ -56,8 +56,9 @@
             <select id="profile">
               <option value="">— custom —</option>
               <optgroup label="DigiByte — frequent shares (recommended)">
-                <option value="digi.hmpool.io|3337">DGB · hmpool (default, low-diff)</option>
-                <option value="dgb.fusionpool.pro|3333">DGB · FusionPool (BR, hybrid 70/25/5)</option>
+                <option value="dgb.fusionpool.pro|3332">DGB · FusionPool :3332 (default ESP32, BR, hybrid 70/25/5)</option>
+                <option value="dgb.fusionpool.pro|3333">DGB · FusionPool :3333 (CPU/Android)</option>
+                <option value="digi.hmpool.io|3337">DGB · hmpool (low-diff)</option>
                 <option value="bcmonster.com|9996">DGB · BCMonster (lottery 0.001)</option>
                 <option value="us1.letsmine.it|3335">DGB · letsmine.it (Brazil / US)</option>
               </optgroup>
@@ -75,6 +76,8 @@
                 <option value="bcmonster.com|9994">BCH · BCMonster</option>
                 <option value="bcmonster.com|9995">PPC · BCMonster</option>
                 <option value="bcmonster.com|9997">BC2 (Bitcoin II) · BCMonster</option>
+                <option value="bch2.fusionpool.pro|4442">BCH2 · FusionPool :4442 (ESP32/Android, ultra low diff)</option>
+                <option value="bch2.fusionpool.pro|4443">BCH2 · FusionPool :4443 (CPU ≥100 MH/s)</option>
                 <option value="bcmonster.com|9998">BCH2 (Bitcoin Cash II) · BCMonster</option>
               </optgroup>
               <optgroup label="Other SHA-256 (letsmine.it, no signup)">
@@ -91,11 +94,11 @@
 
           <div>
             <label for="pool">Pool address</label>
-            <input id="pool" required minlength="4" maxlength="128" placeholder="digi.hmpool.io" autocomplete="off">
+            <input id="pool" required minlength="4" maxlength="128" placeholder="dgb.fusionpool.pro" autocomplete="off">
           </div>
           <div>
             <label for="port">Pool port</label>
-            <input id="port" type="number" required min="1" max="65535" placeholder="3337">
+            <input id="port" type="number" required min="1" max="65535" placeholder="3332">
           </div>
 
           <div class="span-2">
@@ -107,7 +110,7 @@
           <div class="span-2">
             <label for="password">Pool password / difficulty</label>
             <input id="password" maxlength="79" placeholder="x or d=0.001" autocomplete="off">
-            <div class="ch-help">Optional. Most pools use <code>x</code>. On vardiff pools try <code>d=0.001</code> so a ~350 kH/s ESP32 can still submit shares.</div>
+            <div class="ch-help">Optional. Most pools use <code>x</code>. On vardiff pools try <code>d=0.001</code> so a ~700 kH/s ESP32 can still submit shares.</div>
           </div>
 
           <div>

@@ -114,7 +114,7 @@ O agent ainda extrai do log do miner o que a API nativa não expõe: best diffic
 
 ## ⛏️ Pools e moedas
 
-Default **DigiByte na hmpool** (`digi.hmpool.io:3337`, password `X`). Perfis prontos em `ch/conf/`: DGB, BTC (lottery), XEC, BCH. Dica de vardiff: a pool ajusta a dificuldade para ~1 share/30 s por worker — um PC rápido recebe shares "mais pesados", não mais shares; **no PPLNS o crédito é dificuldade × shares**, então nada se perde.
+Default **DigiByte na FusionPool** (`dgb.fusionpool.pro:3333`, tier micro miners, password `x`; BR, sem cadastro). Perfis prontos em `ch/conf/`: DGB, BTC (lottery), XEC, BCH, BC2 e **BCH2 na FusionPool** (`bch2-fusionpool.json` porta 4443 para CPU com 100 MH/s ou mais; `bch2-fusionpool-android.json` porta 4442 para Android, TV box e CPU mais fraca). Dica de vardiff: a pool ajusta a dificuldade para ~1 share/30 s por worker — um PC rápido recebe shares "mais pesados", não mais shares; **no PPLNS o crédito é dificuldade × shares**, então nada se perde.
 
 ## ❓ Perguntas honestas
 
