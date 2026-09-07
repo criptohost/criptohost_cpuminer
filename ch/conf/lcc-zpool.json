@@ -1,0 +1,13 @@
+{
+   "_comment" : "CriptoHost CPUMiner — Litecoin Cash (LCC), minotaurx, via zpool (taxa 1%, sem cadastro)",
+   "_comment" : "Password c=LCC = pagar em LCC. Motor: cpuminer-opt.",
+   "_comment" : "Uso: ./cpuminer -c ch/conf/lcc-zpool.json",
+
+   "algo" : "minotaurx",
+   "url" : "stratum+tcp://minotaurx.mine.zpool.ca:7019",
+   "user" : "SUACARTEIRA_LCC.CH-CPU-01",
+   "pass" : "c=LCC",
+
+   "threads" : 0,
+   "api-bind" : "127.0.0.1:4048"
+}

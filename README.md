@@ -25,6 +25,7 @@ O CriptoHost CPUMiner é o irmão de mesa do [CriptoHost NerdOS](https://github.
 
 - 🖥️ **Multi-plataforma** — Windows, Linux, macOS (Intel e Apple Silicon) e até [Android](https://github.com/criptohost/criptohost_mobile)
 - ⚡ **Caminho rápido da sua CPU** — SHA-NI/AVX2 no x86, crypto ARMv8 no Apple Silicon e ARM — detectado automaticamente
+- 🪙 **Dois motores, escolhidos pelo perfil** — cpuminer-opt para SHA-256d, yespower, yescrypt, power2b, minotaurx; **XMRig** para RandomX (Monero, Salvium) e GhostRider. Mesmo menu, mesmo dashboard, mesmo Fleet
 - 🧙 **CLI interativo** — menu para wallet, pool, worker, threads e password, com persistência (`./ch/mine.sh`)
 - 📊 **Mesmo dashboard das placas** — CH Agent serve a UI na porta 8091: hashrate, shares, best difficulty, log de erros com motivo real
 - 🕸️ **Entra no Fleet automaticamente** — mDNS `_criptohost._tcp`; sem multicast (datacenter/Android), lista de peers por IP
@@ -59,6 +60,8 @@ git clone https://github.com/criptohost/criptohost_cpuminer && cd criptohost_cpu
 ./ch/mine.sh
 ```
 
+Quer Monero/Salvium (RandomX)? `brew install cmake libuv` e `./ch/build-xmrig.sh` — gera o segundo motor `./xmrig`.
+
 ### 🐧 Linux (Debian/Ubuntu)
 
 ```bash
@@ -67,6 +70,8 @@ git clone https://github.com/criptohost/criptohost_cpuminer && cd criptohost_cpu
 ./ch/build-linux.sh
 ./ch/mine.sh
 ```
+
+Quer Monero/Salvium (RandomX)? `sudo apt-get install -y cmake libuv1-dev libhwloc-dev` e `./ch/build-xmrig.sh`.
 
 ### 🤖 Android (Termux, sem loja)
 
@@ -114,7 +119,15 @@ O agent ainda extrai do log do miner o que a API nativa não expõe: best diffic
 
 ## ⛏️ Pools e moedas
 
-Default **DigiByte na FusionPool** (`dgb.fusionpool.pro:3333`, tier micro miners, password `x`; BR, sem cadastro). Perfis prontos em `ch/conf/`: DGB, BTC (lottery), XEC, BCH, BC2 e **BCH2 na FusionPool** (`bch2-fusionpool.json` porta 4443 para CPU com 100 MH/s ou mais; `bch2-fusionpool-android.json` porta 4442 para Android, TV box e CPU mais fraca). Dica de vardiff: a pool ajusta a dificuldade para ~1 share/30 s por worker — um PC rápido recebe shares "mais pesados", não mais shares; **no PPLNS o crédito é dificuldade × shares**, então nada se perde.
+Default **DigiByte na FusionPool** (`dgb.fusionpool.pro:3333`, tier micro miners, password `x`; BR, sem cadastro). Cada perfil em `ch/conf/` traz `algo`, `url` e `pass`; o menu e o agent escolhem o motor pelo `algo` (`sha256d`, `yespower*`, `yescrypt*`, `power2b`, `minotaurx` → cpuminer-opt; `rx/*`, `gr`, `argon2/*` → XMRig).
+
+| Família | Perfis | Motor | Observação |
+|---|---|---|---|
+| SHA-256d | DGB (FusionPool, hmpool, BCMonster, letsmine), BTC (lottery), BCH, XEC, PPC, BC2, **BCH2** (`bch2-fusionpool.json` :4443 CPU ≥100 MH/s · `bch2-fusionpool-android.json` :4442) | cpuminer-opt | carteira da moeda; BCH2 exige `bitcoincashii:` |
+| yespower / yescrypt / power2b / minotaurx | `ytn-zpool` (Yenten), `zny-zpool` (BitZeny, roda até em Termux 32 bits), `mbc-zpool` (MicroBitcoin), `lcc-zpool` (Litecoin Cash) | cpuminer-opt | zpool, taxa 1 %, sem cadastro; password `c=MOEDA` (o perfil já traz) |
+| RandomX | `xmr-supportxmr` (:3333 low-end, PPLNS 0,6 %), `xmr-moneroocean` (:10001, auto-switch, paga XMR), `sal-fusionpool` (Salvium :3443, BR) | **XMRig** (`./ch/build-xmrig.sh`) | 64 bits; 2 GB livres para o modo rápido; carteira XMR de 95 caracteres / Salvium `SC1…`; doação XMRig 1 % |
+
+O dashboard valida a carteira contra a pool antes de salvar (BCH2, Salvium, Monero, zpool) para evitar o "IDLE sem explicação". Dica de vardiff: a pool ajusta a dificuldade para ~1 share/30 s por worker — um PC rápido recebe shares "mais pesados", não mais shares; **no PPLNS o crédito é dificuldade × shares**, então nada se perde.
 
 ## ❓ Perguntas honestas
 

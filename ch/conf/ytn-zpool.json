@@ -1,0 +1,13 @@
+{
+   "_comment" : "CriptoHost CPUMiner — Yenten (YTN), yespowerR16, via zpool (multi-algo, taxa 1%, sem cadastro)",
+   "_comment" : "Password c=YTN = pagar em Yenten na carteira do user. Motor: cpuminer-opt (ja compilado).",
+   "_comment" : "Uso: ./cpuminer -c ch/conf/ytn-zpool.json",
+
+   "algo" : "yespowerr16",
+   "url" : "stratum+tcp://yespowerr16.mine.zpool.ca:6534",
+   "user" : "SUACARTEIRA_YTN.CH-CPU-01",
+   "pass" : "c=YTN",
+
+   "threads" : 0,
+   "api-bind" : "127.0.0.1:4048"
+}

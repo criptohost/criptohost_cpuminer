@@ -1,0 +1,13 @@
+{
+   "_comment" : "CriptoHost CPUMiner — Monero (XMR) na MoneroOcean (auto-switch de algoritmo, paga em XMR, taxa 0.3%)",
+   "_comment" : "Porta 10001 = low-end. Carteira XMR de 95 caracteres. Motor: XMRig.",
+   "_comment" : "Uso: ./xmrig -c ch/conf/xmr-moneroocean.json",
+
+   "algo" : "rx/0",
+   "url" : "stratum+tcp://gulf.moneroocean.stream:10001",
+   "user" : "SUACARTEIRA_XMR.CH-CPU-01",
+   "pass" : "x",
+
+   "threads" : 0,
+   "http-port" : 4049
+}

@@ -84,6 +84,14 @@
       return "BTC";
     }
     if (host.indexOf("bch2.") === 0) return "BCH2";  // bch2.fusionpool.pro antes do teste genérico de fusionpool
+    if (host.indexOf("sal.") === 0 || host.indexOf("salvium") >= 0) return "SAL";
+    if (host.indexOf("supportxmr") >= 0 || host.indexOf("moneroocean") >= 0 || host.indexOf("xmr") >= 0 || host.indexOf("monero") >= 0) return "XMR";
+    if (host.indexOf("zpool") >= 0) {  // multi-algo: a moeda vem do subdomínio do algoritmo
+      if (host.indexOf("yespowerr16") === 0) return "YTN";
+      if (host.indexOf("yescryptr8") === 0) return "ZNY";
+      if (host.indexOf("power2b") === 0) return "MBC";
+      if (host.indexOf("minotaurx") === 0) return "LCC";
+    }
     if (host.indexOf("digi") >= 0 || host.indexOf("hmpool") >= 0 || host.indexOf("fusionpool") >= 0 || host.indexOf("dgb.") === 0) return "DGB";
     if (host.indexOf("xec") >= 0) return "XEC";
     if (host.indexOf("bch") >= 0) return "BCH";
@@ -460,7 +468,9 @@
     { id: "bitcoin-cash", sym: "BCH" },
     { id: "peercoin", sym: "PPC" },
     { id: "digibyte", sym: "DGB" },
-    { id: "ecash", sym: "XEC" }
+    { id: "ecash", sym: "XEC" },
+    { id: "monero", sym: "XMR" },
+    { id: "salvium", sym: "SAL" }
   ];
 
   function fmtUsd(n) {
@@ -772,8 +782,17 @@
     fetch("/api/config").then(function (r) { return r.json(); }).then(function (c) {
       $("pool").value = c.pool;
       $("port").value = c.port;
-      var prof = $("profile"), key = c.pool + "|" + c.port;  // mostra o perfil do dropdown quando a config bate com um
-      if (prof) { prof.value = key; if (prof.value !== key) prof.value = ""; }
+      if ($("algo")) $("algo").value = c.algo || "sha256d";
+      // perfil do dropdown: casa host|port e, se houver, o algo (valores têm 2 a 4 campos)
+      var prof = $("profile");
+      if (prof) {
+        var hit = "";
+        Array.prototype.forEach.call(prof.options, function (o) {
+          var p = o.value.split("|");
+          if (p[0] === c.pool && +p[1] === +c.port && (p[2] || "sha256d") === (c.algo || "sha256d")) hit = o.value;
+        });
+        prof.value = hit;
+      }
       $("wallet").value = c.wallet;
       $("password").value = c.password;
       if ($("timezone")) $("timezone").value = c.timezone;
@@ -808,13 +827,32 @@
 
     $("profile").addEventListener("change", function () {
       if (!this.value) return;
-      var p = this.value.split("|");
+      var p = this.value.split("|");   // host|port[|algo[|password]]
       $("pool").value = p[0];
       $("port").value = p[1];
+      if ($("algo")) $("algo").value = p[2] || "sha256d";
+      if (p[3] && $("password")) $("password").value = p[3];   // ex.: zpool exige c=MOEDA
     });
+    // Placa ESP32 só faz SHA-256d: perfis CPU-only (RandomX, yespower…) somem do dropdown dela.
+    fetch("/api/status").then(function (r) { return r.json(); }).then(function (st) {
+      if (isCpuNode(st)) return;
+      document.querySelectorAll("#profile optgroup[data-cpu-only]").forEach(function (g) { g.remove(); });
+    }).catch(function () {});
+
+    // Carteira compatível com a pool: evita o "IDLE sem explicação" (authorize rejeitado em silêncio)
+    function walletProblem(host, wallet) {
+      var w = wallet.split(".")[0], h = host.toLowerCase();
+      if (h.indexOf("bch2.") === 0 && w.indexOf("bitcoincashii:") !== 0) return "BCH2 needs a bitcoincashii: address (wallet.bch2.org).";
+      if ((h.indexOf("sal.") === 0 || h.indexOf("salvium") >= 0) && !/^(SC1|SaLv)/.test(w)) return "Salvium needs an SC1… (Carrot) or SaLv… address.";
+      if (/supportxmr|moneroocean|xmr|monero/.test(h) && !/^[48][0-9A-Za-z]{94}$/.test(w)) return "Monero needs a 95-char address starting with 4 or 8.";
+      if (h.indexOf("zpool") >= 0 && !/c=[A-Z0-9]+/.test($("password").value)) return "zpool needs c=COIN in the password (e.g. c=YTN).";
+      return "";
+    }
 
     $("cfg-form").addEventListener("submit", function (ev) {
       ev.preventDefault();
+      var bad = walletProblem($("pool").value.trim(), $("wallet").value.trim());
+      if (bad) { set("cfg-msg", bad); return; }
       set("cfg-msg", "Saving…");
       fetch("/api/config", {
         method: "POST",
@@ -822,6 +860,7 @@
         body: JSON.stringify({
           pool: $("pool").value.trim(),
           port: +$("port").value,
+          algo: $("algo") ? $("algo").value : "sha256d",
           wallet: $("wallet").value.trim(),
           password: $("password").value,
           timezone: +$("timezone").value

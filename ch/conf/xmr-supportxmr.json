@@ -1,0 +1,13 @@
+{
+   "_comment" : "CriptoHost CPUMiner — Monero (XMR), RandomX, SupportXMR (PPLNS, taxa 0.6%, sem cadastro)",
+   "_comment" : "Porta 3333 = low-end (vardiff desde 10k). Carteira XMR de 95 caracteres (comeca com 4). Motor: XMRig (./ch/build-xmrig.sh).",
+   "_comment" : "Uso: ./xmrig -c ch/conf/xmr-supportxmr.json",
+
+   "algo" : "rx/0",
+   "url" : "stratum+tcp://pool.supportxmr.com:3333",
+   "user" : "SUACARTEIRA_XMR.CH-CPU-01",
+   "pass" : "x",
+
+   "threads" : 0,
+   "http-port" : 4049
+}

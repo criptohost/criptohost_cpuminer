@@ -1,0 +1,13 @@
+{
+   "_comment" : "CriptoHost CPUMiner — BitZeny (ZNY), yescryptR8, via zpool (taxa 1%, sem cadastro)",
+   "_comment" : "yescrypt roda ate em Termux 32 bits (cpuminer-multi). Password c=ZNY = pagar em ZNY.",
+   "_comment" : "Uso: ./cpuminer -c ch/conf/zny-zpool.json",
+
+   "algo" : "yescryptr8",
+   "url" : "stratum+tcp://yescryptr8.mine.zpool.ca:6323",
+   "user" : "SUACARTEIRA_ZNY.CH-CPU-01",
+   "pass" : "c=ZNY",
+
+   "threads" : 0,
+   "api-bind" : "127.0.0.1:4048"
+}

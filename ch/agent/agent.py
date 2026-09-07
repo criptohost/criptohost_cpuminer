@@ -41,7 +41,13 @@ TOKEN = load_token()
 # ---------- config (ch/miner.conf, KEY="VALUE") ----------
 DEFAULTS = {"WALLET": "", "POOL_NAME": "dgb-fusionpool",
             "POOL_URL": "stratum+tcp://dgb.fusionpool.pro:3333",
-            "WORKER": "CH-CPU-01", "THREADS": "0", "PASSWORD": "X"}
+            "WORKER": "CH-CPU-01", "THREADS": "0", "PASSWORD": "X", "ALGO": "sha256d"}
+
+# motor por algoritmo — mesma regra do mine.sh: rx/*, gr, argon2/*, cn* = XMRig (API HTTP 4049); resto = cpuminer-opt (API 4048)
+XMRIG_API = ("127.0.0.1", 4049)
+def engine_of(algo):
+    a = (algo or "sha256d")
+    return "xmrig" if (a.startswith("rx/") or a.startswith("argon2/") or a.startswith("cn") or a in ("gr", "ghostrider")) else "cpuminer"
 
 def load_conf():
     c = dict(DEFAULTS)
@@ -103,9 +109,15 @@ miner_proc = None
 miner_lock = threading.Lock()
 
 def miner_cmd(c):
-    cmd = [os.path.join(ROOT, "cpuminer"), "-a", "sha256d",
-           "-o", c["POOL_URL"], "-u", f'{c["WALLET"]}.{c["WORKER"]}',
-           "-p", c["PASSWORD"], "-b", f"{MINER_API[0]}:{MINER_API[1]}"]
+    algo = c.get("ALGO") or "sha256d"
+    if engine_of(algo) == "xmrig":
+        cmd = [os.path.join(ROOT, "xmrig"), "-a", algo,
+               "-o", c["POOL_URL"], "-u", f'{c["WALLET"]}.{c["WORKER"]}', "-p", c["PASSWORD"],
+               "--http-host", XMRIG_API[0], "--http-port", str(XMRIG_API[1]), "--donate-level", "1", "--no-color"]
+    else:
+        cmd = [os.path.join(ROOT, "cpuminer"), "-a", algo,
+               "-o", c["POOL_URL"], "-u", f'{c["WALLET"]}.{c["WORKER"]}',
+               "-p", c["PASSWORD"], "-b", f"{MINER_API[0]}:{MINER_API[1]}"]
     if c["THREADS"] not in ("", "0"):
         cmd += ["-t", c["THREADS"]]
     return cmd
@@ -119,9 +131,10 @@ def start_miner():
     global miner_proc
     with miner_lock:
         c = load_conf()
-        binpath = os.path.join(ROOT, "cpuminer")
+        eng = engine_of(c.get("ALGO"))
+        binpath = os.path.join(ROOT, eng)
         if not os.path.exists(binpath):
-            msg = f"Miner binary missing — run {build_hint()} and restart"
+            msg = f"Miner binary ./{eng} missing — run {build_hint()}" + (" and ./ch/build-xmrig.sh" if eng == "xmrig" else "") + " and restart"
             print(f"[agent] {msg}", flush=True)
             log_event("conn", msg)
             log_error(msg)
@@ -214,18 +227,32 @@ def poll_miner():
     last = {"ACC": 0, "REJ": 0, "SOL": 0, "mining": False}
     while True:
         try:
-            s = socket.create_connection(MINER_API, timeout=2)
-            s.sendall(b"summary\n")
-            s.shutdown(socket.SHUT_WR)   # cpuminer responde após EOF do cliente
-            data = b""
-            while True:
-                chunk = s.recv(4096)
-                if not chunk:
-                    break
-                data += chunk
-            s.close()
-            data = data.decode(errors="replace")
-            kv = dict(p.split("=", 1) for p in data.rstrip("|").split(";") if "=" in p)
+            if engine_of(load_conf().get("ALGO")) == "xmrig":
+                # XMRig: GET /2/summary (JSON) → normalizado para as mesmas chaves do cpuminer
+                import urllib.request
+                with urllib.request.urlopen(f"http://{XMRIG_API[0]}:{XMRIG_API[1]}/2/summary", timeout=2) as r:
+                    j = json.loads(r.read().decode())
+                hs = (j.get("hashrate", {}).get("total") or [0])[0] or 0
+                res = j.get("results", {})
+                kv = {"KHS": f"{hs / 1000:.3f}", "ACC": str(res.get("shares_good", 0)),
+                      "REJ": str(int(res.get("shares_total", 0)) - int(res.get("shares_good", 0))),
+                      "SOL": "0", "UPTIME": str(j.get("uptime", 0)), "ALGO": j.get("algo") or "",
+                      "DIFF": str(res.get("diff_current", 0)), "TEMP": "0"}
+                if res.get("best"):
+                    miner_stats["best"] = max(miner_stats["best"], float(res["best"][0]))
+            else:
+                s = socket.create_connection(MINER_API, timeout=2)
+                s.sendall(b"summary\n")
+                s.shutdown(socket.SHUT_WR)   # cpuminer responde após EOF do cliente
+                data = b""
+                while True:
+                    chunk = s.recv(4096)
+                    if not chunk:
+                        break
+                    data += chunk
+                s.close()
+                data = data.decode(errors="replace")
+                kv = dict(p.split("=", 1) for p in data.rstrip("|").split(";") if "=" in p)
             summary = kv
             acc, rej, sol = int(kv.get("ACC", 0)), int(kv.get("REJ", 0)), int(kv.get("SOL", kv.get("SOLV", 0)))  # cpuminer-opt: SOL · cpuminer-multi (32 bits): SOLV
             if acc > last["ACC"]: log_event("accept", f"Share accepted by pool (#{acc})")
@@ -264,6 +291,7 @@ def status_json():
         "rssi_dbm": 0,   # ponytail: PC cabeado/desktop — sem RSSI real
         "uptime_s": int(float(summary.get("UPTIME", 0) or 0)),
         "pool": pool_hostport(c),
+        "algo": c.get("ALGO") or "sha256d",   # aditivo ao contrato: dashboard escolhe unidade/símbolo
         "shares": {"found": acc + rej, "sent": acc + rej, "accepted": acc,
                    "rejected": rej, "pending": 0},
         "best_difficulty": round(miner_stats["best"], 4),   # do miner.log
@@ -720,6 +748,7 @@ class Handler(SimpleHTTPRequestHandler):
                 c["POOL_URL"] = f'stratum+tcp://{d["pool"]}:{d.get("port", 3333)}'
                 c["POOL_NAME"] = "custom"
             if "password" in d: c["PASSWORD"] = str(d["password"])
+            if d.get("algo"): c["ALGO"] = str(d["algo"]).strip()[:32]
             save_conf(c)
             threading.Thread(target=start_miner, daemon=True).start()
             return self._json({"ok": True, "restarting": True})

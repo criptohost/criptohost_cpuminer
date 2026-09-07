@@ -17,7 +17,9 @@ POOL_URL="stratum+tcp://dgb.fusionpool.pro:3333"
 WORKER="CH-CPU-$(hostname -s | tr '[:lower:]' '[:upper:]' | tr -cd 'A-Z0-9' | cut -c1-8)"
 THREADS="0"        # 0 = todos os cores
 PASSWORD="X"
+ALGO="sha256d"     # vem do perfil ("algo" no ch/conf/*.json); rx/*, gr, argon2/*, cn* usam o XMRig
 [ -f "$CONF" ] && . "$CONF"
+ALGO="${ALGO:-sha256d}"   # miner.conf antigo (sem ALGO) continua = sha256d
 
 save() {
   cat > "$CONF" << EOF
@@ -27,12 +29,18 @@ POOL_URL="$POOL_URL"
 WORKER="$WORKER"
 THREADS="$THREADS"
 PASSWORD="$PASSWORD"
+ALGO="$ALGO"
 EOF
 }
 
 profiles() { ls "$CONF_DIR/conf" | sed 's/\.json$//'; }
 
-pool_url_of() { python3 -c "import json;print(json.load(open('$CONF_DIR/conf/$1.json'))['url'])" 2>/dev/null; }
+pool_url_of()  { python3 -c "import json;print(json.load(open('$CONF_DIR/conf/$1.json'))['url'])" 2>/dev/null; }
+pool_algo_of() { python3 -c "import json;print(json.load(open('$CONF_DIR/conf/$1.json')).get('algo','sha256d'))" 2>/dev/null; }
+pool_pass_of() { python3 -c "import json;print(json.load(open('$CONF_DIR/conf/$1.json')).get('pass','x'))" 2>/dev/null; }
+
+# motor por algoritmo: sha256d/yespower/yescrypt/... = cpuminer-opt; rx/*, gr, argon2/*, cn* = XMRig
+engine_of() { case "$1" in rx/*|gr|argon2/*|cn*|ghostrider) echo xmrig;; *) echo cpuminer;; esac; }
 
 pick_pool() {
   echo
@@ -40,7 +48,7 @@ pick_pool() {
   local i=1; local names=()
   while IFS= read -r p; do
     names+=("$p")
-    printf "  [%d] %-18s %s\n" "$i" "$p" "$(pool_url_of "$p")"
+    printf "  [%d] %-24s %-12s %s\n" "$i" "$p" "$(pool_algo_of "$p")" "$(pool_url_of "$p")"
     i=$((i+1))
   done < <(profiles)
   printf "  [%d] URL personalizada (stratum+tcp://host:porta)\n" "$i"
@@ -51,6 +59,8 @@ pick_pool() {
   elif [ "$n" -ge 1 ] 2>/dev/null && [ "$n" -lt "$i" ]; then
     POOL_NAME="${names[$((n-1))]}"
     POOL_URL="$(pool_url_of "$POOL_NAME")"
+    ALGO="$(pool_algo_of "$POOL_NAME")"
+    PASSWORD="$(pool_pass_of "$POOL_NAME")"   # ex.: zpool exige c=MOEDA
   else
     echo "Opção inválida."
   fi
@@ -62,8 +72,9 @@ build_hint() {
 }
 
 start_miner() {
-  if [ ! -x ./cpuminer ]; then
-    echo; echo "⚠ Binário não compilado — rode $(build_hint) primeiro."; return
+  local eng; eng="$(engine_of "$ALGO")"
+  if [ ! -x "./$eng" ]; then
+    echo; echo "⚠ Binário ./$eng não compilado — rode $(build_hint)$([ "$eng" = xmrig ] && echo " e ./ch/build-xmrig.sh") primeiro."; return
   fi
   if [ -z "$WALLET" ]; then
     echo; echo "⚠ Configure a wallet antes de iniciar."; return
@@ -73,7 +84,12 @@ start_miner() {
   # -t 0 literal faria o cpuminer subir ZERO threads; omitir = todos os cores
   T_ARG=()
   [ -n "$THREADS" ] && [ "$THREADS" != "0" ] && T_ARG=(-t "$THREADS")
-  exec ./cpuminer -a sha256d -o "$POOL_URL" -u "$WALLET.$WORKER" -p "$PASSWORD" \
+  if [ "$eng" = xmrig ]; then
+    # XMRig: API HTTP na 4049 (o agent lê /2/summary); doação mínima do projeto = 1 %
+    exec ./xmrig -a "$ALGO" -o "$POOL_URL" -u "$WALLET.$WORKER" -p "$PASSWORD" \
+         "${T_ARG[@]}" --http-host 127.0.0.1 --http-port 4049 --donate-level 1
+  fi
+  exec ./cpuminer -a "$ALGO" -o "$POOL_URL" -u "$WALLET.$WORKER" -p "$PASSWORD" \
        "${T_ARG[@]}" --api-bind 127.0.0.1:4048
 }
 
@@ -82,7 +98,7 @@ if [ $# -ge 2 ]; then
   POOL_NAME="$1"; WALLET="$2"; WORKER="${3:-$WORKER}"
   url="$(pool_url_of "$POOL_NAME")" || true
   [ -n "${url:-}" ] || { echo "Perfil desconhecido: $POOL_NAME"; profiles; exit 1; }
-  POOL_URL="$url"
+  POOL_URL="$url"; ALGO="$(pool_algo_of "$POOL_NAME")"; PASSWORD="$(pool_pass_of "$POOL_NAME")"
   start_miner
 fi
 
@@ -97,7 +113,7 @@ while true; do
   [1] Iniciar mineração (só terminal)
   [2] Iniciar com dashboard web (CH Agent)
   [3] Wallet    : $w
-  [4] Pool      : $POOL_NAME · $POOL_URL
+  [4] Pool      : $POOL_NAME · $POOL_URL · $ALGO ($(engine_of "$ALGO"))
   [5] Worker    : $WORKER
   [6] Threads   : $t
   [7] Password  : $PASSWORD
@@ -106,7 +122,7 @@ EOF
   read -rp " Opção: " op
   case "$op" in
     1) start_miner ;;
-    2) if [ ! -x ./cpuminer ]; then echo; echo "⚠ Binário não compilado — rode $(build_hint) primeiro."; else save; exec ch/agent/run.sh; fi ;;
+    2) if [ ! -x "./$(engine_of "$ALGO")" ]; then echo; echo "⚠ Binário ./$(engine_of "$ALGO") não compilado — rode $(build_hint) primeiro."; else save; exec ch/agent/run.sh; fi ;;
     3) read -rp "Wallet (endereço da moeda da pool): " WALLET; save ;;
     4) pick_pool; save ;;
     5) read -rp "Worker (nome deste nó, ex. CH-CPU-01): " WORKER; save ;;

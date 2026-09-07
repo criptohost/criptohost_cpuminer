@@ -89,12 +89,24 @@
                 <option value="xec.mining-dutch.nl|9998">XEC · mining-dutch</option>
                 <option value="bch.mining-dutch.nl|9985">BCH · mining-dutch</option>
               </optgroup>
+              <optgroup label="CPU only — RandomX (XMRig engine)" data-cpu-only>
+                <option value="pool.supportxmr.com|3333|rx/0">XMR · SupportXMR :3333 (low-end, PPLNS 0.6%)</option>
+                <option value="gulf.moneroocean.stream|10001|rx/0">XMR · MoneroOcean :10001 (auto-switch, pays XMR)</option>
+                <option value="sal.fusionpool.pro|3443|rx/0">SAL · Salvium FusionPool :3443 (BR, hybrid 70/25/5)</option>
+              </optgroup>
+              <optgroup label="CPU only — yespower / yescrypt (zpool, pass c=COIN)" data-cpu-only>
+                <option value="yespowerr16.mine.zpool.ca|6534|yespowerr16|c=YTN">YTN · Yenten (yespowerR16)</option>
+                <option value="yescryptr8.mine.zpool.ca|6323|yescryptr8|c=ZNY">ZNY · BitZeny (yescryptR8, runs on 32-bit too)</option>
+                <option value="power2b.mine.zpool.ca|6242|power2b|c=MBC">MBC · MicroBitcoin (power2b)</option>
+                <option value="minotaurx.mine.zpool.ca|7019|minotaurx|c=LCC">LCC · Litecoin Cash (minotaurx)</option>
+              </optgroup>
             </select>
           </div>
 
           <div>
             <label for="pool">Pool address</label>
             <input id="pool" required minlength="4" maxlength="128" placeholder="dgb.fusionpool.pro" autocomplete="off">
+            <input id="algo" type="hidden" value="sha256d">
           </div>
           <div>
             <label for="port">Pool port</label>

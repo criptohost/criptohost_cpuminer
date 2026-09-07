@@ -55,3 +55,5 @@ ch/peers.conf
 
 # motor 32 bits (ch/build-android.sh)
 third_party/cpuminer-multi/
+third_party/xmrig/
+/xmrig

@@ -1,0 +1,13 @@
+{
+   "_comment" : "CriptoHost CPUMiner — Salvium (SAL), RandomX, FusionPool (BR, hibrida 70/25/5, taxa 2%, sem cadastro)",
+   "_comment" : "Porta 3443 (TCP puro, apesar do seguro na pagina). Carteira Salvium Carrot (SC1...) ou legada (SaLv...).",
+   "_comment" : "Motor: XMRig (./ch/build-xmrig.sh). Uso: ./xmrig -c ch/conf/sal-fusionpool.json",
+
+   "algo" : "rx/0",
+   "url" : "stratum+tcp://sal.fusionpool.pro:3443",
+   "user" : "SUACARTEIRA_SAL.CH-CPU-01",
+   "pass" : "x",
+
+   "threads" : 0,
+   "http-port" : 4049
+}

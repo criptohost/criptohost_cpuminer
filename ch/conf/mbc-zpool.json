@@ -1,0 +1,13 @@
+{
+   "_comment" : "CriptoHost CPUMiner — MicroBitcoin (MBC), power2b, via zpool (taxa 1%, sem cadastro)",
+   "_comment" : "Password c=MBC = pagar em MBC. Motor: cpuminer-opt.",
+   "_comment" : "Uso: ./cpuminer -c ch/conf/mbc-zpool.json",
+
+   "algo" : "power2b",
+   "url" : "stratum+tcp://power2b.mine.zpool.ca:6242",
+   "user" : "SUACARTEIRA_MBC.CH-CPU-01",
+   "pass" : "c=MBC",
+
+   "threads" : 0,
+   "api-bind" : "127.0.0.1:4048"
+}
