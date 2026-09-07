@@ -657,6 +657,15 @@ class Handler(SimpleHTTPRequestHandler):
         if p == "/api/status": return self._json(status_json())
         if p == "/api/events": return self._json(events)
         if p == "/api/errors": return self._json(errors)
+        if p == "/api/log":  # últimas linhas do miner.log — diagnóstico remoto (Android/VPS) sem shell
+            try:
+                with open(os.path.join(HERE, "miner.log"), "rb") as f:
+                    f.seek(0, 2); f.seek(max(0, f.tell() - 16384))
+                    lines = f.read().decode("utf-8", "replace").splitlines()[-80:]
+            except OSError:
+                lines = []
+            import re as _re
+            return self._json([_re.sub(r"\x1b\[[0-9;]*m", "", l) for l in lines])
         if p == "/api/fleet":
             self_st = status_json()
             plist = [x for x in peers.values() if x["worker"] != self_st["worker"]]
