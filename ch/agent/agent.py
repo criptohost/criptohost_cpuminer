@@ -227,7 +227,7 @@ def poll_miner():
             data = data.decode(errors="replace")
             kv = dict(p.split("=", 1) for p in data.rstrip("|").split(";") if "=" in p)
             summary = kv
-            acc, rej, sol = int(kv.get("ACC", 0)), int(kv.get("REJ", 0)), int(kv.get("SOL", 0))
+            acc, rej, sol = int(kv.get("ACC", 0)), int(kv.get("REJ", 0)), int(kv.get("SOL", kv.get("SOLV", 0)))  # cpuminer-opt: SOL · cpuminer-multi (32 bits): SOLV
             if acc > last["ACC"]: log_event("accept", f"Share accepted by pool (#{acc})")
             if rej > last["REJ"]:
                 log_event("reject", f"Share rejected by pool (#{rej})")

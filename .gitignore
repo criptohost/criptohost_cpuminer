@@ -52,3 +52,6 @@ ch/miner.conf
 ch/agent/.venv/
 ch/agent/miner.log
 ch/peers.conf
+
+# motor 32 bits (ch/build-android.sh)
+third_party/cpuminer-multi/
