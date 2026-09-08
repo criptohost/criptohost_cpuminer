@@ -168,6 +168,7 @@ def start_miner():
 summary = {}      # último KEY=VAL da API 4048
 events, errors = [], []
 miner_stats = {"best": 0.0, "jobs": 0}   # extraído do miner.log (API não expõe)
+thr_rates = {}    # cpuminer-multi (32 bits) só publica KHS na API após o 1º share: soma das linhas "CPU #n: x kH/s"
 
 def log_error(msg):
     errors.insert(0, {"t": int(summary.get("UPTIME", 0)), "type": "reject", "msg": msg})
@@ -175,7 +176,8 @@ def log_error(msg):
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 RE_SUBMIT = re.compile(r"Submitted Diff ([0-9.eE+-]+)")
-RE_JOB = re.compile(r"New (Block|Work)[ :]")
+RE_JOB = re.compile(r"New (Block|Work)[ :]|^\[[^\]]+\] sha256d block \d+")
+RE_THR = re.compile(r"CPU #(\d+): ([0-9.]+) (H|kH|MH|GH)/s")
 RE_REASON = re.compile(r"Reject reason: (.+)")
 RE_STALE = re.compile(r"\bStale (\d+)\b")
 
@@ -202,6 +204,11 @@ def tail_miner_log():
                         continue
                     if RE_JOB.search(ln):
                         miner_stats["jobs"] += 1
+                        continue
+                    m = RE_THR.search(ln)
+                    if m:
+                        mult = {"H": 0.001, "kH": 1.0, "MH": 1000.0, "GH": 1e6}[m.group(3)]
+                        thr_rates[m.group(1)] = (float(m.group(2)) * mult, time.time())
                         continue
                     m = RE_REASON.search(ln)
                     if m:
@@ -273,6 +280,9 @@ def poll_miner():
 def status_json():
     c = load_conf()
     khs = float(summary.get("KHS", 0) or 0)
+    if khs <= 0 and summary:   # fallback: threads reportaram nos últimos 90 s (cpuminer-multi antes do 1º share)
+        now = time.time()
+        khs = sum(r for r, t in thr_rates.values() if now - t < 90)
     acc = int(summary.get("ACC", 0) or 0)
     rej = int(summary.get("REJ", 0) or 0)
     mining = bool(summary) and khs > 0
