@@ -20,7 +20,7 @@ WEB = os.path.join(HERE, "web")
 CONF = os.path.join(ROOT, "ch", "miner.conf")
 MINER_API = ("127.0.0.1", 4048)
 HTTP_PORT = int(os.environ.get("CH_AGENT_PORT", "8091"))
-FW = "v0.3.0-cpu"
+FW = "v0.3.1-cpu"
 SERVICE = "_criptohost._tcp.local."
 
 # ---------- token de acesso (nó exposto na internet) ----------
@@ -41,7 +41,21 @@ TOKEN = load_token()
 # ---------- config (ch/miner.conf, KEY="VALUE") ----------
 DEFAULTS = {"WALLET": "", "POOL_NAME": "dgb-fusionpool",
             "POOL_URL": "stratum+tcp://dgb.fusionpool.pro:3333",
-            "WORKER": "CH-CPU-01", "THREADS": "0", "PASSWORD": "X", "ALGO": "sha256d"}
+            "WORKER": "CH-CPU-01", "THREADS": "0", "PASSWORD": "X", "ALGO": "sha256d", "POOL_URL2": ""}
+
+# ---------- failover de pool ----------
+# 3 polls seguidos (~90 s) com miner vivo mas sem hashrate e POOL_URL2 definida → reinicia o motor no fallback.
+# No fallback, a cada 10 min um TCP connect de teste no primário; respondeu → volta. Mesma regra do firmware.
+pool_on_fallback = False
+_pool_idle_polls = 0
+_pool_last_probe = 0.0
+POOL_FAIL_SWITCH, POOL_PROBE_S = 3, 600
+
+def pool_hostport_of(url):
+    return re.sub(r"^stratum\+(tcp|ssl)://", "", url or "")
+
+def active_pool_url(c):
+    return c.get("POOL_URL2") if pool_on_fallback and c.get("POOL_URL2") else c["POOL_URL"]
 
 # motor por algoritmo — mesma regra do mine.sh: rx/*, gr, argon2/*, cn* = XMRig (API HTTP 4049); resto = cpuminer-opt (API 4048)
 XMRIG_API = ("127.0.0.1", 4049)
@@ -64,7 +78,7 @@ def save_conf(c):
             f.write(f'{k}="{c.get(k, DEFAULTS[k])}"\n')
 
 def pool_hostport(c):
-    return re.sub(r"^stratum\+(tcp|ssl)://", "", c["POOL_URL"])
+    return pool_hostport_of(active_pool_url(c))
 
 # ---------- hardware / rede ----------
 def hardware_name():
@@ -112,11 +126,11 @@ def miner_cmd(c):
     algo = c.get("ALGO") or "sha256d"
     if engine_of(algo) == "xmrig":
         cmd = [os.path.join(ROOT, "xmrig"), "-a", algo,
-               "-o", c["POOL_URL"], "-u", f'{c["WALLET"]}.{c["WORKER"]}', "-p", c["PASSWORD"],
+               "-o", active_pool_url(c), "-u", f'{c["WALLET"]}.{c["WORKER"]}', "-p", c["PASSWORD"],
                "--http-host", XMRIG_API[0], "--http-port", str(XMRIG_API[1]), "--donate-level", "1", "--no-color"]
     else:
         cmd = [os.path.join(ROOT, "cpuminer"), "-a", algo,
-               "-o", c["POOL_URL"], "-u", f'{c["WALLET"]}.{c["WORKER"]}',
+               "-o", active_pool_url(c), "-u", f'{c["WALLET"]}.{c["WORKER"]}',
                "-p", c["PASSWORD"], "-b", f"{MINER_API[0]}:{MINER_API[1]}"]
     if c["THREADS"] not in ("", "0"):
         cmd += ["-t", c["THREADS"]]
@@ -261,6 +275,7 @@ def poll_miner():
                 data = data.decode(errors="replace")
                 kv = dict(p.split("=", 1) for p in data.rstrip("|").split(";") if "=" in p)
             summary = kv
+            pool_failover_tick(kv)
             acc, rej, sol = int(kv.get("ACC", 0)), int(kv.get("REJ", 0)), int(kv.get("SOL", kv.get("SOLV", 0)))  # cpuminer-opt: SOL · cpuminer-multi (32 bits): SOLV
             if acc > last["ACC"]: log_event("accept", f"Share accepted by pool (#{acc})")
             if rej > last["REJ"]:
@@ -276,6 +291,35 @@ def poll_miner():
             summary = {}
             last["mining"] = False
         time.sleep(5)
+
+def pool_failover_tick(kv):
+    global pool_on_fallback, _pool_idle_polls, _pool_last_probe
+    c = load_conf()
+    if not c.get("POOL_URL2"):
+        return
+    now = time.time()
+    khs = float(kv.get("KHS", 0) or 0) or sum(r for r, t in thr_rates.values() if now - t < 90)
+    if pool_on_fallback:
+        if now - _pool_last_probe < POOL_PROBE_S:
+            return
+        _pool_last_probe = now
+        host, _, port = pool_hostport_of(c["POOL_URL"]).partition(":")
+        try:
+            socket.create_connection((host, int(port or 3333)), timeout=5).close()
+        except OSError:
+            return
+        log_event("conn", f"Primary pool is back — switching from fallback to {host}")
+        pool_on_fallback = False
+        _pool_idle_polls = 0
+        threading.Thread(target=start_miner, daemon=True).start()
+        return
+    _pool_idle_polls = _pool_idle_polls + 1 if khs <= 0 else 0
+    if _pool_idle_polls >= POOL_FAIL_SWITCH * 6:   # 18 polls × 5 s ≈ 90 s sem hash
+        log_event("conn", f"Primary pool unreachable — switching to fallback {pool_hostport_of(c['POOL_URL2'])}")
+        pool_on_fallback = True
+        _pool_last_probe = now
+        _pool_idle_polls = 0
+        threading.Thread(target=start_miner, daemon=True).start()
 
 def status_json():
     c = load_conf()
@@ -302,6 +346,7 @@ def status_json():
         "uptime_s": int(float(summary.get("UPTIME", 0) or 0)),
         "pool": pool_hostport(c),
         "algo": c.get("ALGO") or "sha256d",   # aditivo ao contrato: dashboard escolhe unidade/símbolo
+        "pool_fallback_active": pool_on_fallback,
         "shares": {"found": acc + rej, "sent": acc + rej, "accepted": acc,
                    "rejected": rej, "pending": 0},
         "best_difficulty": round(miner_stats["best"], 4),   # do miner.log
@@ -719,8 +764,9 @@ class Handler(SimpleHTTPRequestHandler):
                                "foreign": list(foreign.values())})
         if p == "/api/config":
             c = load_conf()
-            host, _, port = pool_hostport(c).partition(":")
-            return self._json({"pool": host, "port": int(port or 3333),
+            host, _, port = pool_hostport_of(c["POOL_URL"]).partition(":")
+            h2, _, p2 = pool_hostport_of(c.get("POOL_URL2")).partition(":")
+            return self._json({"pool": host, "port": int(port or 3333), "pool2": h2, "port2": int(p2 or 0) if h2 else 0,
                                "wallet": f'{c["WALLET"]}.{c["WORKER"]}',
                                "password": c["PASSWORD"], "timezone": -3,
                                "fw": FW, "hardware": HW})
@@ -757,6 +803,8 @@ class Handler(SimpleHTTPRequestHandler):
             if d.get("pool"):
                 c["POOL_URL"] = f'stratum+tcp://{d["pool"]}:{d.get("port", 3333)}'
                 c["POOL_NAME"] = "custom"
+            if "pool2" in d:   # "" desliga o fallback
+                c["POOL_URL2"] = f'stratum+tcp://{d["pool2"]}:{d.get("port2") or 3333}' if str(d.get("pool2", "")).strip() else ""
             if "password" in d: c["PASSWORD"] = str(d["password"])
             if d.get("algo"): c["ALGO"] = str(d["algo"]).strip()[:32]
             save_conf(c)

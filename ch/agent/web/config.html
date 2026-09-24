@@ -113,6 +113,16 @@
             <input id="port" type="number" required min="1" max="65535" placeholder="3332">
           </div>
 
+          <div>
+            <label for="pool2">Fallback pool (optional)</label>
+            <input id="pool2" maxlength="128" placeholder="digi.hmpool.io" autocomplete="off">
+          </div>
+          <div>
+            <label for="port2">Fallback port</label>
+            <input id="port2" type="number" min="1" max="65535" placeholder="3337">
+            <div class="ch-help">Used when the main pool refuses connections 3 times in a row; the node probes the main pool every 10 min and switches back on its own. Same coin and wallet.</div>
+          </div>
+
           <div class="span-2">
             <label for="wallet">Wallet.worker</label>
             <input id="wallet" required minlength="8" maxlength="79" placeholder="YOURWALLET.CH-A3F2" autocomplete="off">

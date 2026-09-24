@@ -20,6 +20,7 @@ PASSWORD="X"
 ALGO="sha256d"     # vem do perfil ("algo" no ch/conf/*.json); rx/*, gr, argon2/*, cn* usam o XMRig
 [ -f "$CONF" ] && . "$CONF"
 ALGO="${ALGO:-sha256d}"   # miner.conf antigo (sem ALGO) continua = sha256d
+POOL_URL2="${POOL_URL2:-}"   # fallback: usado só pelo CH Agent (opção [2]); no modo terminal o motor tenta o primário para sempre
 
 save() {
   cat > "$CONF" << EOF
@@ -30,6 +31,7 @@ WORKER="$WORKER"
 THREADS="$THREADS"
 PASSWORD="$PASSWORD"
 ALGO="$ALGO"
+POOL_URL2="$POOL_URL2"
 EOF
 }
 

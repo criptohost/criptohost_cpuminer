@@ -350,7 +350,7 @@
     set("bestdiff", st.best_difficulty);
     set("templates", st.templates);
     set("valids", st.valid_blocks);
-    set("pool-conn", st.status === "mining" ? "Mining" : st.status);
+    set("pool-conn", (st.status === "mining" ? "Mining" : st.status) + (st.pool_fallback_active ? " · on fallback" : ""));
     set("fw", st.fw);
 
     set("w-worker", st.worker);
@@ -782,6 +782,7 @@
     fetch("/api/config").then(function (r) { return r.json(); }).then(function (c) {
       $("pool").value = c.pool;
       $("port").value = c.port;
+      if ($("pool2")) { $("pool2").value = c.pool2 || ""; $("port2").value = c.port2 || ""; }
       if ($("algo")) $("algo").value = c.algo || "sha256d";
       // perfil do dropdown: casa host|port e, se houver, o algo (valores têm 2 a 4 campos)
       var prof = $("profile");
@@ -846,6 +847,7 @@
       if ((h.indexOf("sal.") === 0 || h.indexOf("salvium") >= 0) && !/^(SC1|SaLv)/.test(w)) return "Salvium needs an SC1… (Carrot) or SaLv… address.";
       if (/supportxmr|moneroocean|xmr|monero/.test(h) && !/^[48][0-9A-Za-z]{94}$/.test(w)) return "Monero needs a 95-char address starting with 4 or 8.";
       if (h.indexOf("zpool") >= 0 && !/c=[A-Z0-9]+/.test($("password").value)) return "zpool needs c=COIN in the password (e.g. c=YTN).";
+      if ($("pool2") && $("pool2").value.trim() && !(+$("port2").value)) return "Fallback pool needs a port.";
       return "";
     }
 
@@ -860,6 +862,8 @@
         body: JSON.stringify({
           pool: $("pool").value.trim(),
           port: +$("port").value,
+          pool2: $("pool2") ? $("pool2").value.trim() : "",
+          port2: $("port2") && $("port2").value ? +$("port2").value : 0,
           algo: $("algo") ? $("algo").value : "sha256d",
           wallet: $("wallet").value.trim(),
           password: $("password").value,
@@ -1007,11 +1011,14 @@
       var f = picked || (file && file.files[0]);
       if (!f) return;
       if (!/\.bin$/i.test(f.name)) { set("ota-msg", "Select a .bin file"); return; }
+      if (/full\.bin$/i.test(f.name)) { set("ota-msg", "The *-full.bin is for USB flashing. Use *-ota.bin (app) or *-fs.bin (dashboard) here."); return; }
+      // *-fs.bin / littlefs.bin = dashboard (LittleFS); config e peers são preservados pelo firmware
+      var isFs = /(-fs|littlefs)\.bin$/i.test(f.name);
       if (otaXhr) { try { otaXhr.abort(); } catch (e) {} otaXhr = null; }
       resetOtaBar();
       $("ota-btn").disabled = true;
-      set("ota-msg", "Pausing miner…");
-      fetch("/api/ota/prepare", { method: "POST" }).then(function (r) {
+      set("ota-msg", isFs ? "Pausing miner (dashboard update)…" : "Pausing miner…");
+      fetch("/api/ota/prepare" + (isFs ? "?target=fs" : ""), { method: "POST" }).then(function (r) {
         if (r.status === 404) {
           resetOtaBar();
           failOta("This firmware cannot OTA while mining. Flash once over USB.");
