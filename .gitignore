@@ -57,3 +57,4 @@ ch/peers.conf
 third_party/cpuminer-multi/
 third_party/xmrig/
 /xmrig
+ch/agent/token
