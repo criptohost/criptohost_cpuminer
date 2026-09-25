@@ -47,6 +47,7 @@
       <div class="ch-tabs ch-tabs--page" role="tablist" aria-label="Settings">
         <button type="button" class="ch-tab is-on" data-cfg="pool" role="tab" aria-selected="true">Pool</button>
         <button type="button" class="ch-tab" data-cfg="wifi" role="tab" aria-selected="false">Wi-Fi</button>
+        <button type="button" class="ch-tab" data-cfg="alerts" role="tab" aria-selected="false" data-cpu-only hidden>Alerts</button>
       </div>
 
       <form class="ch-form" id="cfg-form">
@@ -147,6 +148,35 @@
           <a class="ch-btn ch-btn--ghost" href="/">Cancel</a>
         </div>
         <p class="ch-muted" id="cfg-msg"></p>
+      </form>
+
+      <form class="ch-form" id="alerts-form" hidden>
+        <div class="ch-form-grid">
+          <div class="span-2">
+            <div class="ch-help">This node watches the whole fleet every 60 s and messages a Telegram chat on: node down / back, pool fallback on / off, temperature above the limit, rejected-share streaks, online-but-idle. Configure it on <b>one</b> always-on node (this PC or a VPS). Create the bot with <code>@BotFather</code>, then send it any message and read your chat id at <code>https://api.telegram.org/bot&lt;TOKEN&gt;/getUpdates</code>.</div>
+          </div>
+          <div>
+            <label for="tg-token">Bot token</label>
+            <input id="tg-token" maxlength="128" placeholder="123456789:AAH…" autocomplete="off">
+          </div>
+          <div>
+            <label for="tg-chat">Chat id</label>
+            <input id="tg-chat" maxlength="32" placeholder="-1001234567890" autocomplete="off">
+          </div>
+          <div>
+            <label for="alert-temp">Temperature limit (°C)</label>
+            <input id="alert-temp" type="number" min="0" max="120" placeholder="70">
+          </div>
+          <div>
+            <label for="alert-rejects">Rejected shares in a row</label>
+            <input id="alert-rejects" type="number" min="1" max="100" placeholder="5">
+          </div>
+        </div>
+        <div class="ch-actions">
+          <button type="submit" class="ch-btn">Save alerts</button>
+          <button type="button" class="ch-btn ch-btn--ghost" id="btn-tg-test">Send test message</button>
+        </div>
+        <p class="ch-muted" id="alerts-msg"></p>
       </form>
 
       <form class="ch-form" id="wifi-form" hidden>

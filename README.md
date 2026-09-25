@@ -35,6 +35,7 @@ O CriptoHost CPUMiner é o irmão de mesa do [CriptoHost NerdOS](https://github.
 - 🗺️ **Órbita da rede + edição de peers pela tela** — mapa vivo da frota e editor do `ch/peers.conf` direto no Fleet
 - 🔄 **Atualização pela interface** — botão "Update node" no dashboard faz git pull, recompila se o core mudou e reinicia miner+agent sozinho (essencial para Android e servidores remotos)
 - 🔁 **Supervisão** — o agent religa o miner se ele cair e loga o motivo
+- 🔔 **Central de alertas no Telegram** — aba *Alerts* do Config em um nó sempre ligado (PC ou VPS): ele vigia a frota inteira a cada 60 s e avisa quando um nó cai/volta, uma pool cai e o fallback assume (e quando volta), temperatura passa do limite, shares rejeitados em sequência, nó online sem hashrate. Uma mensagem por transição. Sem dependências: `TG_TOKEN`/`TG_CHAT` no `miner.conf`, botão *Send test message*
 - 🛟 **Pool de fallback** — segunda pool opcional no Config (`POOL_URL2` no `miner.conf`): ~90 s sem hashrate no primário → o agent reinicia o motor no fallback e volta sozinho quando o primário responde (teste a cada 10 min). Vale para os dois motores; só no modo com dashboard ([2])
 
 ## 🖼️ Telas

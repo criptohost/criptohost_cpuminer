@@ -20,7 +20,7 @@ WEB = os.path.join(HERE, "web")
 CONF = os.path.join(ROOT, "ch", "miner.conf")
 MINER_API = ("127.0.0.1", 4048)
 HTTP_PORT = int(os.environ.get("CH_AGENT_PORT", "8091"))
-FW = "v0.3.1-cpu"
+FW = "v0.3.2-cpu"
 SERVICE = "_criptohost._tcp.local."
 
 # ---------- token de acesso (nó exposto na internet) ----------
@@ -41,7 +41,9 @@ TOKEN = load_token()
 # ---------- config (ch/miner.conf, KEY="VALUE") ----------
 DEFAULTS = {"WALLET": "", "POOL_NAME": "dgb-fusionpool",
             "POOL_URL": "stratum+tcp://dgb.fusionpool.pro:3333",
-            "WORKER": "CH-CPU-01", "THREADS": "0", "PASSWORD": "X", "ALGO": "sha256d", "POOL_URL2": ""}
+            "WORKER": "CH-CPU-01", "THREADS": "0", "PASSWORD": "X", "ALGO": "sha256d", "POOL_URL2": "",
+            # central de alertas (Telegram) — configure em UM nó sempre ligado; vazio = desligado
+            "TG_TOKEN": "", "TG_CHAT": "", "ALERT_TEMP": "70", "ALERT_REJECTS": "5"}
 
 # ---------- failover de pool ----------
 # 3 polls seguidos (~90 s) com miner vivo mas sem hashrate e POOL_URL2 definida → reinicia o motor no fallback.
@@ -291,6 +293,112 @@ def poll_miner():
             summary = {}
             last["mining"] = False
         time.sleep(5)
+
+# ---------- central de alertas (Telegram) ----------
+# Um watcher lê /api/status de toda a frota (peers mDNS + lista replicada + este nó) a cada 60 s e
+# avisa no Telegram: nó caiu/voltou (3 ciclos sem resposta), pool em fallback/voltou, temperatura acima
+# do limite, N shares rejeitados seguidos, hashrate zerado com o nó online. Uma mensagem por transição.
+alerts_state = {"enabled": False, "last_sent": None, "last_error": "", "nodes": {}}
+TG_API = os.environ.get("CH_TG_API", "https://api.telegram.org")   # override só para teste local
+
+def tg_send(text):
+    c = load_conf()
+    if not (c.get("TG_TOKEN") and c.get("TG_CHAT")):
+        return False
+    try:
+        import urllib.parse
+        body = urllib.parse.urlencode({"chat_id": c["TG_CHAT"], "text": text, "parse_mode": "HTML"}).encode()
+        req = urllib.request.Request(f"{TG_API}/bot{c['TG_TOKEN']}/sendMessage", data=body)
+        with urllib.request.urlopen(req, timeout=10) as r:
+            ok = json.load(r).get("ok", False)
+        alerts_state["last_sent"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        alerts_state["last_error"] = "" if ok else "telegram returned ok=false"
+        return ok
+    except Exception as e:
+        alerts_state["last_error"] = str(e)[:120]
+        return False
+
+def _fleet_targets():
+    """(worker_hint, ip, port, token) de todos os nós conhecidos, sem duplicar ip:port."""
+    seen, out = set(), []
+    for p in list(peers.values()) + static_peers():
+        key = (p["ip"], p["port"])
+        if key in seen or p["ip"] in ("0.0.0.0", ""):
+            continue
+        seen.add(key); out.append((p.get("worker", ""), p["ip"], p["port"], p.get("token", "")))
+    return out
+
+def _fetch_status(ip, port, tok):
+    req = urllib.request.Request(f"http://{ip}:{port}/api/status", headers={"X-CH-Token": tok} if tok else {})
+    with urllib.request.urlopen(req, timeout=5) as r:
+        return json.load(r)
+
+def alerts_loop():
+    while True:
+        time.sleep(60)
+        c = load_conf()
+        alerts_state["enabled"] = bool(c.get("TG_TOKEN") and c.get("TG_CHAT"))
+        if alerts_state["enabled"]:
+            alerts_tick(c)
+
+def alerts_tick(c):
+        try:
+            temp_lim = float(c.get("ALERT_TEMP") or 70)
+            rej_lim = int(c.get("ALERT_REJECTS") or 5)
+            nodes = alerts_state["nodes"]
+            me = status_json()
+            observed = [(me["worker"], me)]
+            for hint, ip, port, tok in _fleet_targets():
+                if ip == lan_ip() and port == HTTP_PORT:
+                    continue
+                key = f"{ip}:{port}"
+                try:
+                    st = _fetch_status(ip, port, tok)
+                    observed.append((st.get("worker") or hint or key, st))
+                    nodes.setdefault(key, {})["miss"] = 0
+                    nodes[key]["name"] = st.get("worker") or hint or key
+                except Exception:
+                    n = nodes.setdefault(key, {"miss": 0, "name": hint or key})
+                    n["miss"] = n.get("miss", 0) + 1
+                    if n["miss"] == 3 and n.get("seen"):
+                        tg_send(f"🔴 <b>{n['name']}</b> ({key}) sem resposta há 3 min")
+                        n["down"] = True
+            for name, st in observed:
+                key = f"{st.get('ip')}:{st.get('port', HTTP_PORT) if st.get('platform') == 'cpu' else 80}"
+                n = nodes.setdefault(key, {"miss": 0})
+                n["name"], n["seen"] = name, True
+                if n.pop("down", False):
+                    tg_send(f"🟢 <b>{name}</b> voltou — {st.get('status')} · {st.get('hashrate_khs', 0):.0f} kH/s")
+                fb = bool(st.get("pool_fallback_active"))
+                if fb != n.get("fb", False):
+                    n["fb"] = fb
+                    tg_send(f"🟠 <b>{name}</b> {'passou para a pool de fallback' if fb else 'voltou para a pool principal'}: {st.get('pool')}")
+                temp = float(st.get("temp_c") or 0)
+                hot = temp >= temp_lim > 0
+                if hot != n.get("hot", False):
+                    n["hot"] = hot
+                    tg_send(f"🌡 <b>{name}</b> {'temperatura alta' if hot else 'temperatura normalizou'}: {temp:.1f} °C (limite {temp_lim:.0f})")
+                sh = st.get("shares") or {}
+                acc, rej = int(sh.get("accepted", 0)), int(sh.get("rejected", 0))
+                pa, pr = n.get("acc", acc), n.get("rej", rej)
+                streak = n.get("streak", 0)
+                streak = 0 if acc > pa else streak + (rej - pr if rej > pr else 0)
+                n["acc"], n["rej"], n["streak"] = acc, rej, streak
+                if streak >= rej_lim and not n.get("rejalert"):
+                    n["rejalert"] = True
+                    tg_send(f"⚠️ <b>{name}</b>: {streak} shares rejeitados seguidos em {st.get('pool')}")
+                if streak == 0:
+                    n["rejalert"] = False
+                idle = st.get("status") in ("idle", "connecting") or float(st.get("hashrate_khs") or 0) <= 0
+                n["idle_n"] = n.get("idle_n", 0) + 1 if idle else 0
+                if n["idle_n"] == 5:
+                    tg_send(f"⏸ <b>{name}</b> online mas sem hashrate há 5 min ({st.get('status')}, {st.get('pool')})")
+                if not idle and n.get("idle_n", 0) == 0 and n.pop("was_idle", False):
+                    tg_send(f"▶️ <b>{name}</b> voltou a minerar: {st.get('hashrate_khs', 0):.0f} kH/s")
+                if n["idle_n"] >= 5:
+                    n["was_idle"] = True
+        except Exception as e:
+            alerts_state["last_error"] = f"loop: {str(e)[:100]}"
 
 def pool_failover_tick(kv):
     global pool_on_fallback, _pool_idle_polls, _pool_last_probe
@@ -769,7 +877,11 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json({"pool": host, "port": int(port or 3333), "pool2": h2, "port2": int(p2 or 0) if h2 else 0,
                                "wallet": f'{c["WALLET"]}.{c["WORKER"]}',
                                "password": c["PASSWORD"], "timezone": -3,
+                               "tg_token": c.get("TG_TOKEN", ""), "tg_chat": c.get("TG_CHAT", ""),
+                               "alert_temp": int(float(c.get("ALERT_TEMP") or 70)), "alert_rejects": int(c.get("ALERT_REJECTS") or 5),
                                "fw": FW, "hardware": HW})
+        if p == "/api/alerts":
+            return self._json(dict(alerts_state, nodes=len(alerts_state["nodes"])))
         if p == "/api/update":
             return self._json({"running": update_state["running"],
                                "done": update_state["done"],
@@ -805,6 +917,8 @@ class Handler(SimpleHTTPRequestHandler):
                 c["POOL_NAME"] = "custom"
             if "pool2" in d:   # "" desliga o fallback
                 c["POOL_URL2"] = f'stratum+tcp://{d["pool2"]}:{d.get("port2") or 3333}' if str(d.get("pool2", "")).strip() else ""
+            for k, src in (("TG_TOKEN", "tg_token"), ("TG_CHAT", "tg_chat"), ("ALERT_TEMP", "alert_temp"), ("ALERT_REJECTS", "alert_rejects")):
+                if src in d: c[k] = str(d[src]).strip()[:128]
             if "password" in d: c["PASSWORD"] = str(d["password"])
             if d.get("algo"): c["ALGO"] = str(d["algo"]).strip()[:32]
             save_conf(c)
@@ -835,6 +949,9 @@ class Handler(SimpleHTTPRequestHandler):
             update_state.update(running=True, log=[], done=None)
             threading.Thread(target=run_update, daemon=True).start()
             return self._json({"ok": True, "started": True})
+        if p == "/api/alerts/test":
+            ok = tg_send(f"✅ CriptoHost — alertas ativos neste nó ({load_conf()['WORKER']})")
+            return self._json({"ok": ok, "error": alerts_state["last_error"]}, 200 if ok else 502)
         if p == "/api/restart":
             threading.Thread(target=start_miner, daemon=True).start()
             return self._json({"ok": True, "restarting": True})
@@ -857,6 +974,7 @@ def main():
         sys.exit(f"[agent] porta {HTTP_PORT} indisponível ({e.strerror}) — "
                  "já existe um agent rodando? (pkill -f agent.py)")
     threading.Thread(target=poll_miner, daemon=True).start()
+    threading.Thread(target=alerts_loop, daemon=True).start()
     threading.Thread(target=tail_miner_log, daemon=True).start()
     threading.Thread(target=foreign_scan_loop, daemon=True).start()
     threading.Thread(target=peers_sync_loop, daemon=True).start()

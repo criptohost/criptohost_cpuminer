@@ -185,6 +185,7 @@
     chromeAdapted = true;
     document.querySelectorAll('.ch-nav-pills a[href="/ota.html"]').forEach(function (a) { a.remove(); });
     document.querySelectorAll('[data-cfg="wifi"]').forEach(function (t) { t.remove(); });
+    document.querySelectorAll('[data-cfg="alerts"]').forEach(function (t) { t.hidden = false; });   // central de alertas: só nó CPU
     var bf = $("btn-factory");           // factory reset não se aplica a PC
     if (bf) bf.remove();
     var br = $("btn-restart");           // restart aqui reinicia o processo do miner
@@ -783,6 +784,7 @@
       $("pool").value = c.pool;
       $("port").value = c.port;
       if ($("pool2")) { $("pool2").value = c.pool2 || ""; $("port2").value = c.port2 || ""; }
+      if ($("tg-token")) { $("tg-token").value = c.tg_token || ""; $("tg-chat").value = c.tg_chat || ""; $("alert-temp").value = c.alert_temp || 70; $("alert-rejects").value = c.alert_rejects || 5; }
       if ($("algo")) $("algo").value = c.algo || "sha256d";
       // perfil do dropdown: casa host|port e, se houver, o algo (valores têm 2 a 4 campos)
       var prof = $("profile");
@@ -823,6 +825,7 @@
         });
         $("cfg-form").hidden = which !== "pool";
         $("wifi-form").hidden = which !== "wifi";
+        if ($("alerts-form")) $("alerts-form").hidden = which !== "alerts";
       });
     });
 
@@ -873,6 +876,29 @@
         set("cfg-msg", d.ok ? "Saved. Restarting — wait ~20 s and reload." : (d.error || "error"));
       }).catch(function () { set("cfg-msg", "Failed to save."); });
     });
+
+    if ($("alerts-form")) {
+      function alertsPayload() {
+        return { tg_token: $("tg-token").value.trim(), tg_chat: $("tg-chat").value.trim(),
+                 alert_temp: +$("alert-temp").value || 70, alert_rejects: +$("alert-rejects").value || 5 };
+      }
+      $("alerts-form").addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        set("alerts-msg", "Saving…");
+        fetch("/api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(alertsPayload()) })
+          .then(function (r) { return r.json(); })
+          .then(function (d) { set("alerts-msg", d.ok ? "Saved. Watching the fleet every 60 s." : (d.error || "error")); })
+          .catch(function () { set("alerts-msg", "Failed to save."); });
+      });
+      $("btn-tg-test").addEventListener("click", function () {
+        set("alerts-msg", "Saving and sending…");
+        fetch("/api/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(alertsPayload()) })
+          .then(function () { return fetch("/api/alerts/test", { method: "POST" }); })
+          .then(function (r) { return r.json(); })
+          .then(function (d) { set("alerts-msg", d.ok ? "Test message sent — check Telegram." : ("Telegram error: " + (d.error || "unknown"))); })
+          .catch(function () { set("alerts-msg", "Could not reach the node."); });
+      });
+    }
 
     $("wifi-pick").addEventListener("change", function () {
       if (this.value) $("wifi-ssid").value = this.value;
